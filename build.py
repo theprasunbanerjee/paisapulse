@@ -57,8 +57,10 @@ def build():
         )
 
     OUT.write_text(html, encoding="utf-8")
+    # index.html = same content, served by GitHub Pages at the root URL
+    (ROOT / "index.html").write_text(html, encoding="utf-8")
     kb = OUT.stat().st_size // 1024
-    print(f"Built {OUT.name}  ({kb} kb)  -- open this file in a browser to use the app")
+    print(f"Built {OUT.name} + index.html  ({kb} kb)")
 
 
 if __name__ == "__main__":
