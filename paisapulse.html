@@ -396,6 +396,51 @@ footer b{color:var(--ink-dim)}
 .reset-row input{flex:1;font-family:var(--mono);font-size:13px}
 .reset-row button{flex:none}
 
+/* ---------- v1.2: chart toggle, category search, motion ---------- */
+.chart-head{justify-content:space-between;flex-wrap:wrap;gap:10px}
+.seg{display:inline-flex;background:var(--glass);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px}
+.seg-btn{font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:8px;border:none;background:transparent;color:var(--ink-dim)}
+.seg-btn:hover{background:var(--glass-hi);transform:none}
+.seg-btn.on{background:linear-gradient(120deg,var(--pulse),var(--ice));color:#1a0b2e}
+/* category search + intellisense dropdown */
+.cat-pick{position:relative;margin:12px 0 0}
+#catSearch{font-size:13px}
+.cat-suggest{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:40;max-height:240px;overflow-y:auto;
+  background:linear-gradient(170deg,#150f24,#0c0816);border:1px solid var(--line);border-radius:14px;padding:6px;
+  box-shadow:0 22px 60px rgba(0,0,0,.6)}
+.cs-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-dim)}
+.cs-item .cs-e{font-size:16px;flex:none}
+.cs-item .cs-n b{color:var(--pulse);font-weight:800}
+.cs-item.active,.cs-item:hover{background:var(--pulse-soft);color:var(--ink)}
+.cs-item .cs-hint{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink-faint)}
+/* flat (sorted) transaction rows show their date */
+.txn .tdate{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);font-weight:700;margin-left:2px}
+/* ledger row glow when jumped-to from a transaction */
+#dayLedger tr.glow td{color:var(--pulse)}
+#dayLedger tr.glow{background:rgba(176,107,255,.12);box-shadow:inset 0 0 0 1px rgba(176,107,255,.4)}
+#dayLedger tr{transition:background .4s ease}
+/* ---------- MOTION ---------- */
+@keyframes riseIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes popIn{0%{transform:scale(.85);opacity:.4}100%{transform:scale(1);opacity:1}}
+.reveal{opacity:0}
+.reveal.in{animation:riseIn .6s cubic-bezier(.22,1,.36,1) both;animation-delay:var(--d,0s)}
+.card{transition:transform .25s cubic-bezier(.22,1,.36,1),border-color .25s,box-shadow .25s}
+.card:hover{transform:translateY(-3px);border-color:rgba(176,107,255,.28);box-shadow:0 18px 48px rgba(0,0,0,.4),0 0 24px rgba(176,107,255,.08)}
+.chip{transition:transform .15s cubic-bezier(.34,1.56,.64,1),background .2s,color .2s,border-color .2s}
+.chip:hover{transform:translateY(-2px)}
+.chip.on{animation:popIn .28s cubic-bezier(.34,1.56,.64,1)}
+.txn{transition:background .15s,transform .15s}
+.txn:hover{transform:translateX(3px)}
+.stat .val{transition:transform .2s}
+.card.stat:hover .val{transform:scale(1.04)}
+.spark{animation:sparkPulse 2.6s ease-in-out infinite}
+@keyframes sparkPulse{0%,100%{box-shadow:0 0 10px var(--pulse);opacity:1}50%{box-shadow:0 0 16px var(--pulse);opacity:.7}}
+@media(prefers-reduced-motion:reduce){
+  .reveal,.reveal.in{opacity:1!important;animation:none!important}
+  .card:hover,.chip:hover,.txn:hover,.card.stat:hover .val{transform:none}
+  .spark{animation:none}
+}
+
 @media(max-width:640px){
   .hero{padding-top:34px}
   .head-in{gap:10px}
@@ -471,10 +516,14 @@ footer b{color:var(--ink-dim)}
       <section class="card">
         <h2><span class="spark"></span>Add expense</h2>
         <div class="amt-row">
-          <div class="amt-in"><span>₹</span><input id="amt" inputmode="text" placeholder="0  ·  or =20+80" autocomplete="off"></div>
+          <div class="amt-in"><span>₹</span><input id="amt" inputmode="text" placeholder="0" autocomplete="off"></div>
           <input type="date" id="date">
         </div>
         <div class="calc-hint" id="calcHint" hidden></div>
+        <div class="cat-pick">
+          <input id="catSearch" placeholder="🔍 type to find a category…" autocomplete="off">
+          <div class="cat-suggest" id="catSuggest" hidden></div>
+        </div>
         <div class="chips" id="catChips"></div>
         <div class="kbd-hint" id="kbdHint"></div>
         <input id="note" class="field-gap" placeholder="What was it? (optional)" autocomplete="off">
@@ -489,9 +538,11 @@ footer b{color:var(--ink-dim)}
 
     <div class="col">
       <section class="card">
-        <h2><span class="spark"></span>Daily spend &amp; running total</h2>
+        <h2 class="chart-head"><span class="h2-title"><span class="spark"></span><span id="chartTitle">Daily spend &amp; running total</span></span>
+          <span class="seg" id="chartToggle"><button class="seg-btn on" data-mode="daily">Daily</button><button class="seg-btn" data-mode="monthly">Monthly</button></span>
+        </h2>
         <div class="chart-wrap" id="dailyChart"></div>
-        <div class="legend">
+        <div class="legend" id="chartLegend">
           <span><i style="background:linear-gradient(90deg,var(--pulse),#f472b6)"></i>per-day spend</span>
           <span><i style="background:var(--ice)"></i>running total</span>
           <span><i style="background:var(--ink-faint)"></i>today</span>
@@ -513,6 +564,13 @@ footer b{color:var(--ink-dim)}
   <section class="card" style="margin-top:14px">
     <h2 class="txn-head"><span class="h2-title"><span class="spark"></span>Transactions</span>
       <span class="txn-tools">
+        <select id="txnSort" class="mini-select" title="Sort transactions">
+          <option value="date-desc">Newest first</option>
+          <option value="date-asc">Oldest first</option>
+          <option value="amt-desc">Amount: high → low</option>
+          <option value="amt-asc">Amount: low → high</option>
+          <option value="cat">By category</option>
+        </select>
         <select id="txnFilter" class="mini-select" title="Filter by category"></select>
         <label class="chk"><input type="checkbox" id="confirmDel"> confirm delete</label>
       </span>
@@ -849,6 +907,8 @@ let saveTimer=null, lastDeleted=null, toastTimer=null;
 let cloudUrl=null, outbox=[], flushing=false, retryT=null;
 let userName="";
 let txnCat="";                 // transactions category filter ("" = all)
+let txnSort="date-desc";       // transactions sort
+let chartMode="daily";         // chart: daily | monthly
 const KEY_NAME="pp.name.v1";
 
 function persist(){              // local cache — instant, always-on safety net (mirrors the cloud)
@@ -1147,7 +1207,7 @@ function render(){
     $("topCatSub").textContent=fmt(D.byCat[top])+" · "+Math.round(D.byCat[top]/D.spent*100)+"% of month"; }
   else { $("topCat").textContent="—"; $("topCatSub").textContent="nothing yet"; }
 
-  renderChart(D);
+  if(chartMode==="monthly") renderMonthlyChart(); else renderChart(D);
   renderLedger(D);
   renderBudgets(D);
   renderTxns(D);
@@ -1185,6 +1245,37 @@ function renderChart(D){
    '<style>.ax{font:600 10px "JetBrains Mono",monospace;fill:rgba(236,243,255,.35)}</style>'+
    '<line x1="'+L+'" y1="'+(T+ih)+'" x2="'+(W-R)+'" y2="'+(T+ih)+'" stroke="rgba(255,255,255,.12)"/>'+
    bars+todayMark+line+dots+labels+'</svg>';
+}
+
+/* ---------- monthly analysis: total spend per month (rolling 12, ending at the viewed month) ---------- */
+function renderMonthlyChart(){
+  const byM={}; for(const e of expenses){ const k=e.date.slice(0,7); byM[k]=(byM[k]||0)+e.amount; }
+  const months=[]; let y=view.y, m=view.m;
+  for(let i=0;i<12;i++){ const key=y+"-"+pad(m+1); months.unshift({y,m,key,total:byM[key]||0});
+    m--; if(m<0){m=11;y--;} }
+  const W=760,H=250,L=10,R=10,T=20,Bm=28,iw=W-L-R,ih=H-T-Bm;
+  const maxT=Math.max(...months.map(x=>x.total),1);
+  const slot=iw/months.length, bw=Math.max(8,slot*0.62);
+  const withVals=months.filter(x=>x.total>0); const avg=withVals.length? withVals.reduce((s,x)=>s+x.total,0)/withVals.length : 0;
+  let bars="",labels="",avgLine="";
+  months.forEach((mo,i)=>{
+    const cx=L+slot*(i+0.5), h=Math.max(2,mo.total/maxT*ih);
+    const isView=(mo.y===view.y && mo.m===view.m);
+    bars+='<rect x="'+(cx-bw/2)+'" y="'+(T+ih-h)+'" width="'+bw+'" height="'+h+'" rx="3" fill="url(#bar)" opacity="'+(isView?1:.62)+'" style="cursor:pointer" data-ym="'+mo.y+"-"+mo.m+'"><title>'+
+      MONTHS[mo.m].slice(0,3)+" "+mo.y+" — "+fmt(mo.total)+'</title></rect>';
+    if(isView) bars+='<rect x="'+(cx-bw/2-2)+'" y="'+(T+ih-h-2)+'" width="'+(bw+4)+'" height="'+(h+2)+'" rx="4" fill="none" stroke="#f472b6" stroke-width="1.5" pointer-events="none"/>';
+    labels+='<text x="'+cx+'" y="'+(H-8)+'" text-anchor="middle" class="ax">'+MONTHS[mo.m].slice(0,3)+(mo.m===0?" '"+String(mo.y).slice(2):"")+'</text>';
+  });
+  if(avg>0){ const ay=T+ih-avg/maxT*ih;
+    avgLine='<line x1="'+L+'" y1="'+ay+'" x2="'+(W-R)+'" y2="'+ay+'" stroke="#fcd34d" stroke-width="1.3" stroke-dasharray="4 5" opacity=".7"/>'+
+      '<text x="'+(W-R)+'" y="'+(ay-5)+'" text-anchor="end" class="ax" fill="#fcd34d">avg '+fmt(avg)+'</text>'; }
+  $("dailyChart").innerHTML =
+   '<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Monthly spend">'+
+   '<defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">'+
+   '<stop offset="0" stop-color="#b06bff"/><stop offset="1" stop-color="#6d28d9"/></linearGradient></defs>'+
+   '<style>.ax{font:600 10px "JetBrains Mono",monospace;fill:rgba(236,243,255,.35)}</style>'+
+   '<line x1="'+L+'" y1="'+(T+ih)+'" x2="'+(W-R)+'" y2="'+(T+ih)+'" stroke="rgba(255,255,255,.12)"/>'+
+   bars+avgLine+labels+'</svg>';
 }
 
 /* ---------- day ledger ---------- */
@@ -1230,20 +1321,33 @@ function renderTxns(D){
     $("txnList").innerHTML='<div class="empty">'+(txnCat? "No "+catByKey(txnCat).n+" expenses in "+MONTHS[D.m]+"." : "Nothing logged in "+MONTHS[D.m]+" yet — add your first expense ↑")+'</div>';
     return;
   }
-  const byDate={};
-  for(const e of list){ (byDate[e.date]=byDate[e.date]||[]).push(e); }
-  const dates=Object.keys(byDate).sort().reverse();
+  const txnRow=e=>{ const c=catByKey(e.cat);
+    return '<div class="txn" data-date="'+e.date+'"><span class="e">'+c.e+'</span><span class="t"><span class="n">'+
+      esc(e.note||c.n)+'</span><span class="c">'+c.n+'</span></span><span class="a">'+fmt(e.amount)+
+      '</span><button class="x" data-del="'+e.id+'" aria-label="Delete">✕</button></div>'; };
   let html="";
-  for(const dt of dates){
-    const items=byDate[dt], total=items.reduce((s,e)=>s+e.amount,0);
-    const d=new Date(dt+"T00:00:00");
-    html+='<div class="txn-day" data-date="'+dt+'"><div class="day-h"><span>'+d.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"short"})+
-      '</span><b>'+fmt(total)+'</b></div>';
-    for(const e of items){ const c=catByKey(e.cat);
-      html+='<div class="txn"><span class="e">'+c.e+'</span><span class="t"><span class="n">'+
-        esc(e.note||c.n)+'</span><span class="c">'+c.n+'</span></span><span class="a">'+fmt(e.amount)+
-        '</span><button class="x" data-del="'+e.id+'" aria-label="Delete">✕</button></div>'; }
-    html+='</div>';
+  if(txnSort==="date-desc" || txnSort==="date-asc"){
+    // grouped by day (enables the ledger ↔ transactions jump-and-glow)
+    const byDate={};
+    for(const e of list){ (byDate[e.date]=byDate[e.date]||[]).push(e); }
+    const dates=Object.keys(byDate).sort(); if(txnSort==="date-desc") dates.reverse();
+    for(const dt of dates){
+      const items=byDate[dt], total=items.reduce((s,e)=>s+e.amount,0);
+      const d=new Date(dt+"T00:00:00");
+      html+='<div class="txn-day" data-date="'+dt+'"><div class="day-h"><span>'+d.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"short"})+
+        '</span><b>'+fmt(total)+'</b></div>'+items.map(txnRow).join("")+'</div>';
+    }
+  } else {
+    // flat sorted list — each row shows its date
+    const flat=list.slice();
+    if(txnSort==="amt-desc") flat.sort((a,b)=>b.amount-a.amount);
+    else if(txnSort==="amt-asc") flat.sort((a,b)=>a.amount-b.amount);
+    else if(txnSort==="cat") flat.sort((a,b)=>a.cat<b.cat?-1:a.cat>b.cat?1:b.amount-a.amount);
+    html='<div class="txn-flat">'+flat.map(e=>{ const c=catByKey(e.cat);
+      const dd=new Date(e.date+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short"});
+      return '<div class="txn" data-date="'+e.date+'"><span class="e">'+c.e+'</span><span class="t"><span class="n">'+
+        esc(e.note||c.n)+'</span><span class="c">'+c.n+' · <span class="tdate">'+dd+'</span></span></span><span class="a">'+fmt(e.amount)+
+        '</span><button class="x" data-del="'+e.id+'" aria-label="Delete">✕</button></div>'; }).join("")+'</div>';
   }
   $("txnList").innerHTML=html;
 }
@@ -1263,9 +1367,51 @@ const hideToast=()=>$("toast").classList.remove("show");
 function renderChips(){
   $("catChips").innerHTML = CATS.map((c,i)=>'<span class="chip'+(c.k===selCat?" on":"")+'" data-cat="'+c.k+'" role="button" tabindex="0">'+c.e+" "+c.n+(i<9?'<span class="k">'+(i+1)+'</span>':'')+'</span>').join("");
 }
-$("kbdHint").innerHTML = 'Shortcuts: <kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>9</kbd> pick category · <kbd>Enter</kbd> add · <kbd>←</kbd>/<kbd>→</kbd> change month · amount field does math (<kbd>=20+80</kbd>)';
+$("kbdHint").innerHTML = '<kbd>=20+80</kbd> then <kbd>Tab</kbd> to calc · type above to find a category (or <kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>9</kbd>) · <kbd>Enter</kbd> adds · <kbd>←</kbd>/<kbd>→</kbd> change month';
 $("catChips").addEventListener("click",e=>{ const t=e.target.closest(".chip"); if(!t)return; selCat=t.dataset.cat; renderChips(); });
 $("catChips").addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ const t=e.target.closest(".chip"); if(t){ e.preventDefault(); selCat=t.dataset.cat; renderChips(); } } });
+
+/* ---------- category quick-find (fuzzy, IntelliSense-style) ---------- */
+const CAT_SYN={dining:"food eating restaurant cafe lunch dinner snack swiggy zomato",commute:"travel transport uber ola auto rapido cab metro bus fuel petrol",
+  groceries:"grocery home blinkit zepto vegetables milk supplies kitchen",subs:"subscription bills netflix spotify prime recharge phone internet wifi membership",
+  ent:"entertainment games movie fun ott steam",care:"personal grooming haircut salon spa gym skincare",health:"medical medicine doctor pharmacy hospital",
+  housing:"rent utilities electricity maintenance gas water",debt:"emi loan credit card repayment",learn:"learning course book education class udemy",
+  gifts:"gift treat donation party celebration",lending:"lent borrow loan friend",assets:"big purchase gadget electronics furniture appliance",
+  invest:"investment trading stocks crypto mutual fund sip savings",misc:"other miscellaneous random"};
+function fuzzyScore(q,c){
+  q=q.toLowerCase(); const hay=(c.n+" "+c.k+" "+(CAT_SYN[c.k]||"")).toLowerCase();
+  if(c.n.toLowerCase().startsWith(q)) return 100;
+  const wi=hay.split(/\s+/).findIndex(w=>w.startsWith(q)); if(wi>-1) return 80-wi;
+  const idx=hay.indexOf(q); if(idx>-1) return 50-Math.min(idx,40);
+  // subsequence
+  let i=0; for(const ch of hay){ if(ch===q[i]) i++; if(i===q.length) break; }
+  return i===q.length?20:-1;
+}
+let csList=[], csActive=0;
+function renderCatSuggest(q){
+  const box=$("catSuggest");
+  if(!q){ box.hidden=true; csList=[]; return; }
+  csList=CATS.map(c=>({c,s:fuzzyScore(q,c)})).filter(x=>x.s>=0).sort((a,b)=>b.s-a.s).slice(0,6).map(x=>x.c);
+  if(!csList.length){ box.innerHTML='<div class="cs-item">no match — pick a chip below</div>'; box.hidden=false; return; }
+  csActive=0;
+  box.innerHTML=csList.map((c,i)=>{ const n=CATS.indexOf(c)+1;
+    return '<div class="cs-item'+(i===0?" active":"")+'" data-cat="'+c.k+'"><span class="cs-e">'+c.e+'</span><span class="cs-n">'+c.n+'</span>'+(n<=9?'<span class="cs-hint">Alt+'+n+'</span>':'')+'</div>'; }).join("");
+  box.hidden=false;
+}
+function pickCat(k){ selCat=k; renderChips(); const s=$("catSearch"); s.value=""; $("catSuggest").hidden=true; csList=[];
+  const c=catByKey(k); toast(c.e+" "+c.n+" selected"); $("amt").focus(); }
+$("catSearch").addEventListener("input",()=>renderCatSuggest($("catSearch").value.trim()));
+$("catSearch").addEventListener("keydown",e=>{
+  if(!csList.length){ if(e.key==="Enter") e.preventDefault(); return; }
+  if(e.key==="ArrowDown"){ e.preventDefault(); csActive=(csActive+1)%csList.length; }
+  else if(e.key==="ArrowUp"){ e.preventDefault(); csActive=(csActive-1+csList.length)%csList.length; }
+  else if(e.key==="Enter"||e.key==="Tab"){ e.preventDefault(); pickCat(csList[csActive].k); return; }
+  else if(e.key==="Escape"){ $("catSearch").value=""; $("catSuggest").hidden=true; csList=[]; return; }
+  else return;
+  document.querySelectorAll("#catSuggest .cs-item").forEach((el,i)=>el.classList.toggle("active",i===csActive));
+});
+$("catSuggest").addEventListener("click",e=>{ const it=e.target.closest("[data-cat]"); if(it) pickCat(it.dataset.cat); });
+$("catSearch").addEventListener("blur",()=>setTimeout(()=>{ $("catSuggest").hidden=true; },150));
 
 /* live calculator preview under the amount field */
 $("amt").addEventListener("input",()=>{
@@ -1304,7 +1450,11 @@ function addExpense(){
   cloudSync({op:"add",expense:exp});
 }
 $("btnAdd").addEventListener("click",addExpense);
-[$("amt"),$("note")].forEach(el=>el.addEventListener("keydown",e=>{ if(e.key==="Enter") addExpense(); }));
+$("note").addEventListener("keydown",e=>{ if(e.key==="Enter") addExpense(); });
+$("amt").addEventListener("keydown",e=>{
+  if(e.key==="Tab"){ const h=$("calcHint"); if(!h.hidden && h.dataset.val){ e.preventDefault(); $("amt").value=h.dataset.val; h.hidden=true; } return; }
+  if(e.key==="Enter") addExpense();
+});
 
 function deleteTxn(id){
   const i=expenses.findIndex(x=>x.id===id); if(i<0)return;
@@ -1358,16 +1508,50 @@ function fillTxnFilter(){
     CATS.map(c=>'<option value="'+c.k+'">'+c.e+" "+c.n+'</option>').join("");
 }
 $("txnFilter").addEventListener("change",()=>{ txnCat=$("txnFilter").value; render(); });
+$("txnSort").addEventListener("change",()=>{ txnSort=$("txnSort").value; render(); });
 
-/* ---------- day ledger: click a day → scroll to that day's transactions and glow them ---------- */
-$("dayLedger").addEventListener("click",e=>{
-  const tr=e.target.closest("tr[data-day]"); if(!tr)return;
-  const d=+tr.dataset.day;
-  const iso=view.y+"-"+pad(view.m+1)+"-"+pad(d);
-  if(txnCat){ txnCat=""; $("txnFilter").value=""; render(); }   // clear filter so the day is visible
+/* ---------- chart: Daily / Monthly toggle ---------- */
+$("chartToggle").addEventListener("click",e=>{ const b=e.target.closest("[data-mode]"); if(!b)return;
+  chartMode=b.dataset.mode;
+  document.querySelectorAll("#chartToggle .seg-btn").forEach(x=>x.classList.toggle("on",x===b));
+  $("chartTitle").innerHTML = chartMode==="monthly" ? "Monthly spend (last 12 months)" : "Daily spend &amp; running total";
+  $("chartLegend").style.display = chartMode==="monthly" ? "none" : "";
+  render();
+});
+/* click a month bar → drill into that month (back to daily view) */
+$("dailyChart").addEventListener("click",e=>{
+  const r=e.target.closest("[data-ym]"); if(!r)return;
+  const [yy,mm]=r.dataset.ym.split("-").map(Number); view={y:yy,m:mm};
+  chartMode="daily"; document.querySelectorAll("#chartToggle .seg-btn").forEach(x=>x.classList.toggle("on",x.dataset.mode==="daily"));
+  $("chartTitle").innerHTML="Daily spend &amp; running total"; $("chartLegend").style.display=""; render();
+});
+
+/* ---------- ledger ↔ transactions cross-highlight ---------- */
+function glowLedgerDay(d){
+  const tr=$("dayLedger").querySelector('tr[data-day="'+d+'"]');
+  if(tr){ tr.scrollIntoView({behavior:"smooth",block:"center"}); tr.classList.add("glow");
+    setTimeout(()=>tr.classList.remove("glow"),1900); }
+}
+function glowTxnDay(iso){
   const el=document.querySelector('.txn-day[data-date="'+iso+'"]');
   if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.add("glow");
     setTimeout(()=>el.classList.remove("glow"),1900); }
+}
+/* click a ledger day → jump down to that day's transactions */
+$("dayLedger").addEventListener("click",e=>{
+  const tr=e.target.closest("tr[data-day]"); if(!tr)return;
+  const d=+tr.dataset.day, iso=view.y+"-"+pad(view.m+1)+"-"+pad(d);
+  let needRender=false;
+  if(txnCat){ txnCat=""; $("txnFilter").value=""; needRender=true; }
+  if(txnSort!=="date-desc" && txnSort!=="date-asc"){ txnSort="date-desc"; $("txnSort").value="date-desc"; needRender=true; }  // need day groups
+  if(needRender) render();
+  glowTxnDay(iso);
+});
+/* click a transaction → jump up to its day in the ledger */
+$("txnList").addEventListener("click",e=>{
+  if(e.target.closest("[data-del]")) return;        // delete button handled separately
+  const t=e.target.closest(".txn[data-date]"); if(!t)return;
+  glowLedgerDay(+t.dataset.date.slice(8,10));
 });
 
 /* ---------- modals ---------- */
@@ -1637,6 +1821,16 @@ $("greetEdit").addEventListener("click",startNameEdit);
     if(parts.length>260) parts.splice(0,parts.length-260);
     requestAnimationFrame(loop);
   })();
+})();
+
+/* ---------- entrance animations: reveal cards on load + scroll ---------- */
+(function(){
+  const mm=window.matchMedia;
+  if((mm&&mm("(prefers-reduced-motion: reduce)").matches) || !("IntersectionObserver" in window)) return;
+  const els=[...document.querySelectorAll(".hero,.card")];
+  els.forEach((el,i)=>{ el.classList.add("reveal"); el.style.setProperty("--d",((i%5)*0.06).toFixed(2)+"s"); });
+  const io=new IntersectionObserver(ents=>ents.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target); } }),{threshold:0.06});
+  els.forEach(el=>io.observe(el));
 })();
 
 /* ================= init ================= */
