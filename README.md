@@ -17,8 +17,8 @@ A beautiful, private expense tracker that lives in **one HTML file** and stores 
 
 ## ⬇️ How to use it
 
-1. Click the green **`<> Code`** button → **Download ZIP** (or right-click `paisapulse.html` → Save As).
-2. Unzip, then **double-click `paisapulse.html`** — it opens in your browser (Chrome or Edge recommended).
+1. Click the green **`<> Code`** button → **Download ZIP** (or right-click `index.html` → Save As).
+2. Unzip, then **double-click `index.html`** — it opens in your browser (Chrome or Edge recommended).
 3. Start adding expenses. Your data is saved on that device automatically.
 
 > **One tap away?** On desktop, drag the tab to your bookmarks bar. On mobile, open the file and tap "Add to Home screen."
@@ -84,7 +84,7 @@ src/
     keyboard.js       KeyboardHandler class
     ui.js             UI class — toast, modals, onboarding, greeting
     app.js            PaisaPulse class — owns all state, wires everything
-build.py              Bundles src/ → paisapulse.html
+build.py              Bundles src/ → index.html
 apps-script.gs        Google Apps Script backend (paste into your Sheet)
 ```
 
@@ -92,7 +92,7 @@ apps-script.gs        Google Apps Script backend (paste into your Sheet)
 ```bash
 # Edit files in src/ — open src/index.html in browser to test live
 # When ready to ship:
-python build.py       # produces paisapulse.html (the distributable)
+python build.py       # produces index.html (the distributable)
 ```
 
 **Stack:** Vanilla HTML/CSS/JS — no build tools, no npm, no dependencies. Storage is `localStorage` with an optional Google Apps Script + Google Sheets backend.
