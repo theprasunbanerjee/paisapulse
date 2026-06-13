@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23b06bff'/><stop offset='100%25' stop-color='%23f472b6'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='%23080611'/><text x='16' y='23' text-anchor='middle' font-family='system-ui,sans-serif' font-weight='900' font-size='20' fill='url(%23g)'>₹</text></svg>">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="pace-ok">
@@ -14,7 +15,22 @@
 
 <header>
   <div class="head-in">
-    <div class="brand">PaisaPulse<small>money, made visible</small></div>
+    <div class="brand">
+      <svg viewBox="0 0 178 36" width="178" height="36" xmlns="http://www.w3.org/2000/svg" aria-label="PaisaPulse — money, made visible">
+        <defs>
+          <linearGradient id="pp-brand-g" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"   stop-color="#b06bff"/>
+            <stop offset="55%"  stop-color="#f472b6"/>
+            <stop offset="100%" stop-color="#fcd34d"/>
+          </linearGradient>
+        </defs>
+        <rect x="0" y="2" width="28" height="28" rx="7" fill="rgba(176,107,255,.13)" stroke="rgba(176,107,255,.28)" stroke-width="1"/>
+        <text x="14" y="19" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="900" font-size="14" fill="url(#pp-brand-g)">₹</text>
+        <polyline points="3,28 7,28 9,23 11,31 13,26 15.5,28 25,28" stroke="url(#pp-brand-g)" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".72"/>
+        <text x="36" y="15" font-family="'Unbounded',system-ui,sans-serif" font-weight="900" font-size="12" fill="url(#pp-brand-g)">PaisaPulse</text>
+        <text x="36" y="29" font-family="'Manrope',system-ui,sans-serif" font-weight="700" font-size="8.5" fill="rgba(245,240,255,.42)" letter-spacing="2.2">MONEY · MADE VISIBLE</text>
+      </svg>
+    </div>
     <div class="month-nav">
       <button id="prevM" aria-label="Previous month">‹</button>
       <button id="monthLabel" class="month-label" aria-haspopup="true" title="Pick a month">—</button>
@@ -137,7 +153,7 @@
     <div id="txnList"></div>
   </section>
 
-  <footer>Your data lives with <b>you</b> — back it up from <b>⇅ Data</b> and keep the file anywhere (Drive, pendrive, email to yourself). Plain text outlives every app.</footer>
+  <footer>Your data lives with <b>you</b> — back it up from <b>⇅ Data</b> and keep the file anywhere (Drive, pendrive, email to yourself). Plain text outlives every app. · <a href="https://theprasunbanerjee.github.io/" target="_blank" rel="noopener" style="color:var(--ink-dim);text-decoration:none">by Prasun ↗</a></footer>
 </div>
 
 <!-- Data modal -->
