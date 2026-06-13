@@ -1367,7 +1367,7 @@ const hideToast=()=>$("toast").classList.remove("show");
 function renderChips(){
   $("catChips").innerHTML = CATS.map((c,i)=>'<span class="chip'+(c.k===selCat?" on":"")+'" data-cat="'+c.k+'" role="button" tabindex="0">'+c.e+" "+c.n+(i<9?'<span class="k">'+(i+1)+'</span>':'')+'</span>').join("");
 }
-$("kbdHint").innerHTML = 'Amount does math (<kbd>=20+80</kbd>) · <kbd>Ctrl</kbd>+<kbd>K</kbd> jump to category search (or <kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>9</kbd>) · <kbd>Tab</kbd> moves field to field · <kbd>Enter</kbd> adds · <kbd>←</kbd>/<kbd>→</kbd> change month';
+$("kbdHint").innerHTML = 'Amount does math (<kbd>=20+80</kbd>) · <kbd>Ctrl</kbd>+<kbd>K</kbd> cycles amount → date → category (or <kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>9</kbd>) · <kbd>Enter</kbd> adds · <kbd>←</kbd>/<kbd>→</kbd> change month';
 $("catChips").addEventListener("click",e=>{ const t=e.target.closest(".chip"); if(!t)return; selCat=t.dataset.cat; renderChips(); });
 $("catChips").addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ const t=e.target.closest(".chip"); if(t){ e.preventDefault(); selCat=t.dataset.cat; renderChips(); } } });
 
@@ -1428,10 +1428,11 @@ $("calcHint").addEventListener("click",()=>{ const h=$("calcHint"); if(h.dataset
 const isTyping = el => el && (el.tagName==="INPUT"||el.tagName==="TEXTAREA"||el.tagName==="SELECT");
 document.addEventListener("keydown",e=>{
   if(!$("onboard").hidden) return;                 // don't hijack during onboarding
-  if((e.ctrlKey||e.metaKey) && (e.key==="k"||e.key==="K")){   // Ctrl/Cmd+K → category search; again → note box
+  if((e.ctrlKey||e.metaKey) && (e.key==="k"||e.key==="K")){   // Ctrl/Cmd+K cycles: amount → date → category search
     e.preventDefault();
-    if(document.activeElement===$("catSearch")){ $("note").focus(); }
-    else { const s=$("catSearch"); s.scrollIntoView({block:"center"}); s.focus(); s.select(); }
+    const ck=["amt","date","catSearch"], cur=ck.indexOf(document.activeElement.id);
+    const el=$(ck[(cur+1)%ck.length]); el.scrollIntoView({block:"center"}); el.focus();
+    if(el.type!=="date" && el.select) try{ el.select(); }catch(_){}
     return;
   }
   if(e.altKey && !e.ctrlKey && !e.metaKey && e.key>="1" && e.key<="9"){
