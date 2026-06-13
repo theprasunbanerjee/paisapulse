@@ -74,9 +74,10 @@ header{
   filter:drop-shadow(0 0 14px rgba(176,107,255,.45));white-space:nowrap}
 .brand small{display:block;font-family:var(--body);font-weight:600;font-size:10px;letter-spacing:2.5px;
   text-transform:uppercase;color:var(--ink-faint);-webkit-text-fill-color:var(--ink-faint)}
-.month-nav{display:flex;align-items:center;gap:6px;margin-left:auto}
-.month-nav button{width:34px;height:34px;border-radius:11px}
-#monthLabel{font-family:var(--mono);font-weight:700;font-size:14px;min-width:120px;text-align:center;color:var(--ink)}
+.month-nav{display:flex;align-items:center;gap:6px;margin-left:auto;position:relative}
+#prevM,#nextM{width:34px;height:34px;border-radius:11px;flex:none}
+.month-label{font-family:var(--mono);font-weight:700;font-size:14px;min-width:120px;text-align:center;color:var(--ink);height:34px}
+.month-label:hover{border-color:rgba(176,107,255,.45);color:var(--ink)}
 .head-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .badge{
   font-size:11px;font-weight:700;padding:6px 11px;border-radius:999px;
@@ -344,10 +345,63 @@ footer b{color:var(--ink-dim)}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
+/* ---------- v1.1 additions ---------- */
+.today-pill{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-dim);
+  padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:var(--glass);white-space:nowrap}
+/* month picker */
+.month-picker{position:absolute;top:42px;left:50%;transform:translateX(-50%);z-index:60;width:280px;
+  background:linear-gradient(170deg,#140e22,#0c0816);border:1px solid var(--line);border-radius:16px;padding:14px;
+  box-shadow:0 26px 70px rgba(0,0,0,.65)}
+.mp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.mp-head span{font-family:var(--mono);font-weight:800;font-size:14px}
+.mp-head button{width:30px;height:30px;border-radius:9px}
+.mp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.mp-grid button{padding:9px 0;font-size:12.5px;font-weight:700;border-radius:10px}
+.mp-grid button.cur{background:linear-gradient(120deg,var(--pulse),var(--ice));color:#1a0b2e;border-color:transparent}
+.mp-grid button:disabled{opacity:.3;cursor:not-allowed}
+.mp-today{width:100%;margin-top:10px;font-size:12px;padding:9px}
+/* calculator hint */
+.calc-hint{margin-top:8px;font-size:13px;font-weight:700;color:var(--pulse);cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;border:1px solid rgba(176,107,255,.35);
+  background:var(--pulse-soft);user-select:none}
+.calc-hint:hover{background:rgba(176,107,255,.22)}
+.calc-hint b{font-family:var(--mono)}
+/* keyboard hint + chip key badges */
+.kbd-hint{font-size:11px;color:var(--ink-faint);font-weight:600;margin:2px 0 4px}
+.kbd-hint kbd{font-family:var(--mono);font-size:10px;background:var(--glass-hi);border:1px solid var(--line);
+  border-radius:5px;padding:1px 5px;color:var(--ink-dim)}
+.chip .k{font-family:var(--mono);font-size:9px;opacity:.6;margin-left:5px;font-weight:800}
+.chip.on .k{opacity:.85}
+/* transactions header tools */
+.txn-head{justify-content:space-between;flex-wrap:wrap;gap:10px}
+.h2-title{display:inline-flex;align-items:center;gap:10px}
+.txn-tools{display:inline-flex;align-items:center;gap:12px;font-family:var(--body)}
+.mini-select{width:auto;padding:7px 10px;font-size:12px;font-weight:700;border-radius:10px;color:var(--ink-dim);
+  background:rgba(0,0,0,.32) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%23b06bff' stroke-width='1.6'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 10px center;-webkit-appearance:none;appearance:none;padding-right:26px}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--ink-dim);cursor:pointer;text-transform:none;letter-spacing:0}
+.chk input{width:auto;accent-color:var(--pulse);cursor:pointer}
+/* delete confirm state on a txn row */
+.txn .x.confirm{opacity:1;width:auto;padding:0 10px;font-size:11px;font-weight:800;color:#1a0b2e;
+  background:linear-gradient(120deg,var(--burn),#f43f5e);border-radius:9px}
+/* transaction-day group + glow-on-jump */
+.txn-day{border-radius:14px;transition:background .4s ease,box-shadow .4s ease}
+.txn-day.glow{background:rgba(176,107,255,.10);box-shadow:0 0 0 1px rgba(176,107,255,.4),0 0 26px rgba(176,107,255,.22)}
+/* ledger rows clickable */
+#dayLedger tr{cursor:pointer}
+#dayLedger tr:hover td{color:var(--ink)}
+/* budget % */
+.b-pct{font-family:var(--mono);font-size:11px;font-weight:800;color:var(--lilac);min-width:38px;text-align:right}
+/* safe reset row */
+.reset-row{display:flex;gap:10px}
+.reset-row input{flex:1;font-family:var(--mono);font-size:13px}
+.reset-row button{flex:none}
+
 @media(max-width:640px){
   .hero{padding-top:34px}
   .head-in{gap:10px}
   .month-nav{margin-left:0;width:100%;justify-content:center;order:3}
+  .month-picker{left:auto;right:0;transform:none}
+  .txn-tools{width:100%;justify-content:space-between}
 }
 </style>
 </head>
@@ -359,10 +413,16 @@ footer b{color:var(--ink-dim)}
     <div class="brand">PaisaPulse<small>money, made visible</small></div>
     <div class="month-nav">
       <button id="prevM" aria-label="Previous month">‹</button>
-      <span id="monthLabel">—</span>
+      <button id="monthLabel" class="month-label" aria-haspopup="true" title="Pick a month">—</button>
       <button id="nextM" aria-label="Next month">›</button>
+      <div id="monthPicker" class="month-picker" hidden>
+        <div class="mp-head"><button id="mpPrevY" aria-label="Previous year">‹</button><span id="mpYear">—</span><button id="mpNextY" aria-label="Next year">›</button></div>
+        <div class="mp-grid" id="mpGrid"></div>
+        <button class="mp-today" id="mpToday">⌂ Jump to this month</button>
+      </div>
     </div>
     <div class="head-actions">
+      <span class="today-pill" id="todayPill" title="Today"></span>
       <span class="badge" id="saveBadge"><span class="dot"></span><span id="saveBadgeTxt">checking…</span></span>
       <button id="btnData">⇅ Data</button>
       <button id="btnSettings">⚙ Budgets</button>
@@ -411,10 +471,12 @@ footer b{color:var(--ink-dim)}
       <section class="card">
         <h2><span class="spark"></span>Add expense</h2>
         <div class="amt-row">
-          <div class="amt-in"><span>₹</span><input id="amt" inputmode="decimal" placeholder="0" autocomplete="off"></div>
+          <div class="amt-in"><span>₹</span><input id="amt" inputmode="text" placeholder="0  ·  or =20+80" autocomplete="off"></div>
           <input type="date" id="date">
         </div>
+        <div class="calc-hint" id="calcHint" hidden></div>
         <div class="chips" id="catChips"></div>
+        <div class="kbd-hint" id="kbdHint"></div>
         <input id="note" class="field-gap" placeholder="What was it? (optional)" autocomplete="off">
         <button class="btn-glow" id="btnAdd">Add expense</button>
       </section>
@@ -449,7 +511,12 @@ footer b{color:var(--ink-dim)}
   </div>
 
   <section class="card" style="margin-top:14px">
-    <h2><span class="spark"></span>Transactions</h2>
+    <h2 class="txn-head"><span class="h2-title"><span class="spark"></span>Transactions</span>
+      <span class="txn-tools">
+        <select id="txnFilter" class="mini-select" title="Filter by category"></select>
+        <label class="chk"><input type="checkbox" id="confirmDel"> confirm delete</label>
+      </span>
+    </h2>
     <div id="txnList"></div>
   </section>
 
@@ -498,7 +565,8 @@ footer b{color:var(--ink-dim)}
     <button class="btn-glow" id="btnSaveBudgets">Save budgets</button>
   </div>
   <div class="divider"></div>
-  <div class="m-row"><button class="btn-danger" id="btnWipe">Delete all data…</button></div>
+  <p class="hint" style="margin-bottom:8px"><b>Reset this device</b> — clears only the local copy in this browser. Your Google Sheet (the real database) is <b>never</b> touched; just reload or reconnect to pull everything back. Not connected? Export a backup first.</p>
+  <div class="reset-row"><input id="wipeConfirm" placeholder="type RESET to confirm" autocomplete="off"><button class="btn-danger" id="btnWipe" disabled>Reset local copy</button></div>
 </dialog>
 
 <div id="toast"><span id="toastMsg"></span><button id="toastAct" hidden>Undo</button></div>
@@ -780,6 +848,7 @@ let selCat = "dining";
 let saveTimer=null, lastDeleted=null, toastTimer=null;
 let cloudUrl=null, outbox=[], flushing=false, retryT=null;
 let userName="";
+let txnCat="";                 // transactions category filter ("" = all)
 const KEY_NAME="pp.name.v1";
 
 function persist(){              // local cache — instant, always-on safety net (mirrors the cloud)
@@ -874,9 +943,19 @@ function updateConnUI(){
 }
 
 /* ---------- parsing ---------- */
+function evalAmount(s){            // safe calculator: "=20+80", "20*3", "(100-15)/2"
+  let str=String(s||"").replace(/[₹,\s]/g,"");
+  if(str[0]==="=") str=str.slice(1);
+  if(!str || !/\d/.test(str) || !/^[-+*/().\d]+$/.test(str)) return null;
+  try{ const v=Function('"use strict";return ('+str+')')();
+    return (typeof v==="number" && isFinite(v)) ? v : null; }
+  catch(e){ return null; }
+}
 function parseAmount(s){
   if(typeof s==="number") return s;
-  const n = parseFloat(String(s||"").replace(/[₹,\s]/g,""));
+  const str=String(s||"").trim();
+  if(str[0]==="=" || /[-+*/()]/.test(str.replace(/^-/,""))) { const r=evalAmount(str); if(r!=null) return r; }
+  const n = parseFloat(str.replace(/[₹,\s]/g,""));
   return isNaN(n)?null:n;
 }
 function parseDate(s){
@@ -1117,7 +1196,8 @@ function renderLedger(D){
     const dt=new Date(D.y,D.m,d);
     const wd=dt.toLocaleDateString("en-IN",{weekday:"short"});
     const isToday = D.isCur && d===now.getDate();
-    html+='<tr'+(isToday?' class="is-today"':'')+'><td>'+wd+" "+d+(isToday?" · today":"")+
+    const hasSpend=D.perDay[d]>0;
+    html+='<tr'+(isToday?' class="is-today"':'')+(hasSpend?' data-day="'+d+'"':'')+'><td>'+wd+" "+d+(isToday?" · today":"")+
       '</td><td>'+fmt(D.perDay[d])+'</td><td style="text-align:left;width:90px"><span class="mini" style="width:'+
       Math.round(D.perDay[d]/maxDay*80)+'px"></span></td><td>'+fmt(D.cum[d])+'</td><td>'+fmt(D.cum[d]/d)+'</td></tr>';
   }
@@ -1127,15 +1207,17 @@ function renderLedger(D){
 /* ---------- budgets ---------- */
 function renderBudgets(D){
   const maxSpent=Math.max(...Object.values(D.byCat),1);
+  // build + sort by spend descending (then by budget so set-but-unspent still show)
+  const rows=CATS.map(c=>({c,sp:D.byCat[c.k]||0,b:budgets.cats[c.k]})).filter(r=>r.sp||r.b)
+    .sort((a,b)=>(b.sp-a.sp)||((b.b||0)-(a.b||0)));
   let html="";
-  for(const c of CATS){
-    const sp=D.byCat[c.k]||0, b=budgets.cats[c.k];
-    if(!sp && !b) continue;
+  for(const {c,sp,b} of rows){
     let w,cls="";
     if(b){ const r=sp/b; w=Math.min(100,r*100); cls=r>1?"over":(r>=(D.isCur?D.elapsed/D.days:1)?"warn":""); }
     else w=sp/maxSpent*100;
+    const pct = D.spent>0 ? Math.round(sp/D.spent*100) : 0;
     html+='<div class="b-row"><span class="b-emoji">'+c.e+'</span><span class="b-name">'+c.n+
-      '</span><span class="b-bar"><span class="b-fill '+cls+'" style="width:'+w+'%"></span></span>'+
+      '</span><span class="b-pct">'+pct+'%</span><span class="b-bar"><span class="b-fill '+cls+'" style="width:'+w+'%"></span></span>'+
       '<span class="b-amt"><b>'+fmt(sp)+"</b>"+(b?" / "+fmt(b):"")+'</span></div>';
   }
   $("budgetList").innerHTML = html || '<div class="empty">Log expenses or set budgets (⚙) to see this fill up.</div>';
@@ -1143,20 +1225,25 @@ function renderBudgets(D){
 
 /* ---------- transactions ---------- */
 function renderTxns(D){
-  if(!D.list.length){ $("txnList").innerHTML='<div class="empty">Nothing logged in '+MONTHS[D.m]+' yet — add your first expense ↑</div>'; return; }
+  const list = txnCat ? D.list.filter(e=>e.cat===txnCat) : D.list;
+  if(!list.length){
+    $("txnList").innerHTML='<div class="empty">'+(txnCat? "No "+catByKey(txnCat).n+" expenses in "+MONTHS[D.m]+"." : "Nothing logged in "+MONTHS[D.m]+" yet — add your first expense ↑")+'</div>';
+    return;
+  }
   const byDate={};
-  for(const e of D.list){ (byDate[e.date]=byDate[e.date]||[]).push(e); }
+  for(const e of list){ (byDate[e.date]=byDate[e.date]||[]).push(e); }
   const dates=Object.keys(byDate).sort().reverse();
   let html="";
   for(const dt of dates){
     const items=byDate[dt], total=items.reduce((s,e)=>s+e.amount,0);
     const d=new Date(dt+"T00:00:00");
-    html+='<div class="day-h"><span>'+d.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"short"})+
+    html+='<div class="txn-day" data-date="'+dt+'"><div class="day-h"><span>'+d.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"short"})+
       '</span><b>'+fmt(total)+'</b></div>';
     for(const e of items){ const c=catByKey(e.cat);
       html+='<div class="txn"><span class="e">'+c.e+'</span><span class="t"><span class="n">'+
         esc(e.note||c.n)+'</span><span class="c">'+c.n+'</span></span><span class="a">'+fmt(e.amount)+
         '</span><button class="x" data-del="'+e.id+'" aria-label="Delete">✕</button></div>'; }
+    html+='</div>';
   }
   $("txnList").innerHTML=html;
 }
@@ -1174,10 +1261,36 @@ function toast(msg, actLabel, actFn){
 const hideToast=()=>$("toast").classList.remove("show");
 
 function renderChips(){
-  $("catChips").innerHTML = CATS.map(c=>'<span class="chip'+(c.k===selCat?" on":"")+'" data-cat="'+c.k+'" role="button" tabindex="0">'+c.e+" "+c.n+'</span>').join("");
+  $("catChips").innerHTML = CATS.map((c,i)=>'<span class="chip'+(c.k===selCat?" on":"")+'" data-cat="'+c.k+'" role="button" tabindex="0">'+c.e+" "+c.n+(i<9?'<span class="k">'+(i+1)+'</span>':'')+'</span>').join("");
 }
+$("kbdHint").innerHTML = 'Shortcuts: <kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>9</kbd> pick category · <kbd>Enter</kbd> add · <kbd>←</kbd>/<kbd>→</kbd> change month · amount field does math (<kbd>=20+80</kbd>)';
 $("catChips").addEventListener("click",e=>{ const t=e.target.closest(".chip"); if(!t)return; selCat=t.dataset.cat; renderChips(); });
 $("catChips").addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ const t=e.target.closest(".chip"); if(t){ e.preventDefault(); selCat=t.dataset.cat; renderChips(); } } });
+
+/* live calculator preview under the amount field */
+$("amt").addEventListener("input",()=>{
+  const v=$("amt").value.trim(), h=$("calcHint");
+  if(v && (v[0]==="=" || /\d[-+*/]/.test(v.replace(/^-/,"")))){
+    const r=evalAmount(v);
+    if(r!=null && r>0){ h.hidden=false; h.dataset.val=r; h.innerHTML='= <b>'+fmt(r)+'</b> &nbsp;· tap or press Enter'; }
+    else { h.hidden=false; delete h.dataset.val; h.textContent='…keep typing a calculation'; }
+  } else h.hidden=true;
+});
+$("calcHint").addEventListener("click",()=>{ const h=$("calcHint"); if(h.dataset.val){ $("amt").value=h.dataset.val; h.hidden=true; $("amt").focus(); } });
+
+/* keyboard shortcuts: Alt+1..9 pick category (even while typing); ←/→ change month when not in a field */
+const isTyping = el => el && (el.tagName==="INPUT"||el.tagName==="TEXTAREA"||el.tagName==="SELECT");
+document.addEventListener("keydown",e=>{
+  if(!$("onboard").hidden) return;                 // don't hijack during onboarding
+  if(e.altKey && !e.ctrlKey && !e.metaKey && e.key>="1" && e.key<="9"){
+    const idx=+e.key-1; if(idx<CATS.length){ e.preventDefault(); selCat=CATS[idx].k; renderChips();
+      const a=$("amt"); if(document.activeElement!==a && !isTyping(document.activeElement)) a.focus(); } return;
+  }
+  if(!isTyping(document.activeElement) && !document.querySelector("dialog[open]")){
+    if(e.key==="ArrowLeft"){ $("prevM").click(); }
+    else if(e.key==="ArrowRight"){ if(!$("nextM").disabled) $("nextM").click(); }
+  }
+});
 
 function addExpense(){
   const a=parseAmount($("amt").value);
@@ -1193,19 +1306,69 @@ function addExpense(){
 $("btnAdd").addEventListener("click",addExpense);
 [$("amt"),$("note")].forEach(el=>el.addEventListener("keydown",e=>{ if(e.key==="Enter") addExpense(); }));
 
-$("txnList").addEventListener("click",e=>{
-  const b=e.target.closest("[data-del]"); if(!b)return;
-  const i=expenses.findIndex(x=>x.id===b.dataset.del); if(i<0)return;
+function deleteTxn(id){
+  const i=expenses.findIndex(x=>x.id===id); if(i<0)return;
   lastDeleted=expenses.splice(i,1)[0]; persist(); render();
   cloudSync({op:"delete",id:lastDeleted.id});
   toast("Deleted "+fmt(lastDeleted.amount),"Undo",()=>{
     expenses.push(lastDeleted); sortExp(); persist(); render();
     cloudSync({op:"add",expense:lastDeleted});
   });
+}
+$("txnList").addEventListener("click",e=>{
+  const b=e.target.closest("[data-del]"); if(!b)return;
+  const id=b.dataset.del;
+  if(meta.confirmDelete===false){ deleteTxn(id); return; }   // toggle off → instant (Undo still available)
+  if(b.dataset.armed){ deleteTxn(id); return; }              // second click confirms
+  b.dataset.armed="1"; b.classList.add("confirm"); b.textContent="Delete?";
+  setTimeout(()=>{ if(b.isConnected){ delete b.dataset.armed; b.classList.remove("confirm"); b.textContent="✕"; } },3000);
 });
+/* confirm-before-delete toggle (top of Transactions) */
+$("confirmDel").checked = meta.confirmDelete!==false;
+$("confirmDel").addEventListener("change",()=>{ meta.confirmDelete=$("confirmDel").checked; persist(); });
 
 $("prevM").addEventListener("click",()=>{ view.m--; if(view.m<0){view.m=11;view.y--;} render(); });
 $("nextM").addEventListener("click",()=>{ view.m++; if(view.m>11){view.m=0;view.y++;} render(); });
+
+/* ---------- month picker (calendar) ---------- */
+let mpYearShown=view.y;
+function openMonthPicker(){ mpYearShown=view.y; renderMonthPicker(); $("monthPicker").hidden=false; }
+function closeMonthPicker(){ $("monthPicker").hidden=true; }
+function renderMonthPicker(){
+  $("mpYear").textContent=mpYearShown;
+  const maxY=now.getFullYear();
+  $("mpNextY").disabled = mpYearShown>=maxY;
+  $("mpGrid").innerHTML = MONTHS.map((m,i)=>{
+    const future = mpYearShown>now.getFullYear() || (mpYearShown===now.getFullYear() && i>now.getMonth());
+    const cur = (i===view.m && mpYearShown===view.y);
+    return '<button data-m="'+i+'"'+(cur?' class="cur"':'')+(future?' disabled':'')+'>'+m.slice(0,3)+'</button>';
+  }).join("");
+}
+$("monthLabel").addEventListener("click",e=>{ e.stopPropagation(); $("monthPicker").hidden?openMonthPicker():closeMonthPicker(); });
+$("mpPrevY").addEventListener("click",()=>{ mpYearShown--; renderMonthPicker(); });
+$("mpNextY").addEventListener("click",()=>{ if(mpYearShown<now.getFullYear()){ mpYearShown++; renderMonthPicker(); } });
+$("mpToday").addEventListener("click",()=>{ view={y:now.getFullYear(),m:now.getMonth()}; closeMonthPicker(); render(); });
+$("mpGrid").addEventListener("click",e=>{ const b=e.target.closest("[data-m]"); if(!b||b.disabled)return;
+  view={y:mpYearShown,m:+b.dataset.m}; closeMonthPicker(); render(); });
+document.addEventListener("click",e=>{ if(!$("monthPicker").hidden && !e.target.closest(".month-nav")) closeMonthPicker(); });
+
+/* ---------- transactions: category filter ---------- */
+function fillTxnFilter(){
+  $("txnFilter").innerHTML='<option value="">All categories</option>'+
+    CATS.map(c=>'<option value="'+c.k+'">'+c.e+" "+c.n+'</option>').join("");
+}
+$("txnFilter").addEventListener("change",()=>{ txnCat=$("txnFilter").value; render(); });
+
+/* ---------- day ledger: click a day → scroll to that day's transactions and glow them ---------- */
+$("dayLedger").addEventListener("click",e=>{
+  const tr=e.target.closest("tr[data-day]"); if(!tr)return;
+  const d=+tr.dataset.day;
+  const iso=view.y+"-"+pad(view.m+1)+"-"+pad(d);
+  if(txnCat){ txnCat=""; $("txnFilter").value=""; render(); }   // clear filter so the day is visible
+  const el=document.querySelector('.txn-day[data-date="'+iso+'"]');
+  if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.add("glow");
+    setTimeout(()=>el.classList.remove("glow"),1900); }
+});
 
 /* ---------- modals ---------- */
 document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",()=>b.closest("dialog").close()));
@@ -1355,10 +1518,15 @@ armButton($("btnRestore"),"Restore from pasted JSON (replaces everything)",()=>{
     toast("Restored "+expenses.length+" expenses ✓");
   }catch(e){ toast("That doesn't look like a PaisaPulse backup"); }
 });
-armButton($("btnWipe"),"Delete all data…",()=>{
-  expenses=[]; budgets={overall:null,cats:{}}; persist(); render(); $("settingsModal").close();
-  if(cloudUrl){ cloudSync({op:"replace",expenses}); cloudSync({op:"budgets",budgets}); }
-  toast("Everything deleted");
+/* SAFE reset: clears ONLY this device's local copy. Never touches the Google Sheet (the real DB). */
+$("wipeConfirm").addEventListener("input",()=>{ $("btnWipe").disabled = $("wipeConfirm").value.trim().toUpperCase()!=="RESET"; });
+$("btnWipe").addEventListener("click",()=>{
+  if($("wipeConfirm").value.trim().toUpperCase()!=="RESET") return;
+  expenses=[]; budgets={overall:null,cats:{}};
+  Store.set(KEY_EXP,JSON.stringify(expenses)); Store.set(KEY_BUD,JSON.stringify(budgets));
+  $("wipeConfirm").value=""; $("btnWipe").disabled=true;
+  render(); $("settingsModal").close();
+  toast(cloudUrl ? "Local copy cleared — reload to pull your Sheet back" : "Local copy cleared");
 });
 
 /* settings */
@@ -1490,6 +1658,8 @@ $("greetEdit").addEventListener("click",startNameEdit);
     if(!meta.seedDismissed) $("seedBanner").hidden=false; }
 
   $("date").value=todayISO();
+  $("todayPill").textContent = now.toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
+  fillTxnFilter();
   renderChips(); updateConnUI(); renderGreeting(); render();
 
   if(cloudUrl){
