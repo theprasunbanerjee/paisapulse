@@ -1428,8 +1428,11 @@ $("calcHint").addEventListener("click",()=>{ const h=$("calcHint"); if(h.dataset
 const isTyping = el => el && (el.tagName==="INPUT"||el.tagName==="TEXTAREA"||el.tagName==="SELECT");
 document.addEventListener("keydown",e=>{
   if(!$("onboard").hidden) return;                 // don't hijack during onboarding
-  if((e.ctrlKey||e.metaKey) && (e.key==="k"||e.key==="K")){   // Ctrl/Cmd+K → jump to category search
-    e.preventDefault(); const s=$("catSearch"); s.scrollIntoView({block:"center"}); s.focus(); s.select(); return;
+  if((e.ctrlKey||e.metaKey) && (e.key==="k"||e.key==="K")){   // Ctrl/Cmd+K → category search; again → note box
+    e.preventDefault();
+    if(document.activeElement===$("catSearch")){ $("note").focus(); }
+    else { const s=$("catSearch"); s.scrollIntoView({block:"center"}); s.focus(); s.select(); }
+    return;
   }
   if(e.altKey && !e.ctrlKey && !e.metaKey && e.key>="1" && e.key<="9"){
     const idx=+e.key-1; if(idx<CATS.length){ e.preventDefault(); selCat=CATS[idx].k; renderChips();
