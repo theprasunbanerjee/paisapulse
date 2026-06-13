@@ -604,6 +604,7 @@ footer b{color:var(--ink-dim)}
   <div class="conn-card">
     <div class="conn-row"><span class="conn-dot off" id="connDot"></span><span id="connTxt">Not connected</span></div>
     <button id="btnChangeConn">Connect Google Drive</button>
+    <button id="btnLocateDrive" hidden style="flex-basis:100%;text-align:left;font-size:12px">📂 Locate this on Drive folder</button>
   </div>
   <div class="tabs">
     <button class="tab on" data-tab="import">Import</button>
@@ -901,7 +902,8 @@ const KEY_BUD  = "pp.budgets.v1";
 const KEY_META = "pp.meta.v1";
 const KEY_NAME = "pp.name.v1";
 const KEY_URL  = "pp.cloud.url.v1";
-const KEY_OUT  = "pp.outbox.v1";
+const KEY_OUT    = "pp.outbox.v1";
+const KEY_FOLDER = "pp.folder.url.v1";
 
 const URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/;
 
@@ -1145,11 +1147,12 @@ class CloudSync {
     this.app.sortExp();
     Store.set(KEY_EXP, JSON.stringify(this.app.expenses));
     Store.set(KEY_BUD, JSON.stringify(this.app.budgets));
+    if (j.folderUrl) try { localStorage.setItem(KEY_FOLDER, j.folderUrl); } catch(e) {}
   }
 
   async loadFromCloud() {
     this.setSync("loading");
-    try { this.applyData(await this.call(null)); this.setSync("saved"); return true; }
+    try { this.applyData(await this.call(null)); this.setSync("saved"); this.updateConnUI(); return true; }
     catch(e) { console.error("cloud load failed", e); this.setSync("error"); return false; }
   }
 
@@ -1206,10 +1209,15 @@ class CloudSync {
   }
 
   updateConnUI() {
-    const dot = $("connDot"), txt = $("connTxt"), btn = $("btnChangeConn");
+    const dot = $("connDot"), txt = $("connTxt"), btn = $("btnChangeConn"), loc = $("btnLocateDrive");
     if (dot) dot.className = "conn-dot" + (this.app.cloudUrl ? "" : " off");
     if (txt) txt.textContent = this.app.cloudUrl ? "Connected to your Google Sheet" : "Not connected — data is on this device only";
     if (btn) btn.textContent = this.app.cloudUrl ? "Change / disconnect Drive" : "Connect Google Drive";
+    if (loc) {
+      let folderUrl = null;
+      if (this.app.cloudUrl) try { folderUrl = localStorage.getItem(KEY_FOLDER); } catch(e) {}
+      loc.hidden = !folderUrl;
+    }
     this.setSync("saved");
   }
 
@@ -1234,6 +1242,9 @@ class CloudSync {
   /* ── event wiring ── */
 
   wire() {
+    $("btnLocateDrive").addEventListener("click", () => {
+      try { const url = localStorage.getItem(KEY_FOLDER); if (url) window.open(url, "_blank", "noopener"); } catch(e) {}
+    });
     $("btnChangeConn").addEventListener("click", () => {
       const was = !!this.app.cloudUrl;
       this.app.cloudUrl = null;

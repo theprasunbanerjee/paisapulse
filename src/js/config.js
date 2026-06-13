@@ -37,7 +37,8 @@ const KEY_BUD  = "pp.budgets.v1";
 const KEY_META = "pp.meta.v1";
 const KEY_NAME = "pp.name.v1";
 const KEY_URL  = "pp.cloud.url.v1";
-const KEY_OUT  = "pp.outbox.v1";
+const KEY_OUT    = "pp.outbox.v1";
+const KEY_FOLDER = "pp.folder.url.v1";
 
 const URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/;
 

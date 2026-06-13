@@ -79,7 +79,12 @@ function readAll(){
       });
     }
   }
-  return {ok:true, expenses: expenses, budgets: readBudgets()};
+  var sp = ss(), folderUrl = '';
+  try {
+    var parents = DriveApp.getFileById(sp.getId()).getParents();
+    folderUrl = parents.hasNext() ? parents.next().getUrl() : '';
+  } catch(e) {}
+  return {ok:true, expenses: expenses, budgets: readBudgets(), folderUrl: folderUrl, sheetUrl: sp.getUrl()};
 }
 
 function readBudgets(){

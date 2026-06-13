@@ -51,11 +51,12 @@ class CloudSync {
     this.app.sortExp();
     Store.set(KEY_EXP, JSON.stringify(this.app.expenses));
     Store.set(KEY_BUD, JSON.stringify(this.app.budgets));
+    if (j.folderUrl) try { localStorage.setItem(KEY_FOLDER, j.folderUrl); } catch(e) {}
   }
 
   async loadFromCloud() {
     this.setSync("loading");
-    try { this.applyData(await this.call(null)); this.setSync("saved"); return true; }
+    try { this.applyData(await this.call(null)); this.setSync("saved"); this.updateConnUI(); return true; }
     catch(e) { console.error("cloud load failed", e); this.setSync("error"); return false; }
   }
 
@@ -112,10 +113,15 @@ class CloudSync {
   }
 
   updateConnUI() {
-    const dot = $("connDot"), txt = $("connTxt"), btn = $("btnChangeConn");
+    const dot = $("connDot"), txt = $("connTxt"), btn = $("btnChangeConn"), loc = $("btnLocateDrive");
     if (dot) dot.className = "conn-dot" + (this.app.cloudUrl ? "" : " off");
     if (txt) txt.textContent = this.app.cloudUrl ? "Connected to your Google Sheet" : "Not connected — data is on this device only";
     if (btn) btn.textContent = this.app.cloudUrl ? "Change / disconnect Drive" : "Connect Google Drive";
+    if (loc) {
+      let folderUrl = null;
+      if (this.app.cloudUrl) try { folderUrl = localStorage.getItem(KEY_FOLDER); } catch(e) {}
+      loc.hidden = !folderUrl;
+    }
     this.setSync("saved");
   }
 
@@ -140,6 +146,9 @@ class CloudSync {
   /* ── event wiring ── */
 
   wire() {
+    $("btnLocateDrive").addEventListener("click", () => {
+      try { const url = localStorage.getItem(KEY_FOLDER); if (url) window.open(url, "_blank", "noopener"); } catch(e) {}
+    });
     $("btnChangeConn").addEventListener("click", () => {
       const was = !!this.app.cloudUrl;
       this.app.cloudUrl = null;
