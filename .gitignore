@@ -1,0 +1,21 @@
+# ── Personal data — NEVER publish ─────────────────────────────
+*.xlsx
+*.xls
+paisapulse-data.csv
+paisapulse.backup.html
+paisapulse.personal-backup.html
+*backup*.html
+paisapulse-backup*.json
+paisapulse-expenses*.csv
+*-backup-*.json
+
+# ── Dev / tooling artifacts ───────────────────────────────────
+.claude/
+_*.py
+__pycache__/
+*.pyc
+
+# ── OS junk ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
