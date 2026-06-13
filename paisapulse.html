@@ -1367,7 +1367,7 @@ const hideToast=()=>$("toast").classList.remove("show");
 function renderChips(){
   $("catChips").innerHTML = CATS.map((c,i)=>'<span class="chip'+(c.k===selCat?" on":"")+'" data-cat="'+c.k+'" role="button" tabindex="0">'+c.e+" "+c.n+(i<9?'<span class="k">'+(i+1)+'</span>':'')+'</span>').join("");
 }
-$("kbdHint").innerHTML = '<kbd>=20+80</kbd> then <kbd>Tab</kbd> to calc · type above to find a category (or <kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>9</kbd>) · <kbd>Enter</kbd> adds · <kbd>←</kbd>/<kbd>→</kbd> change month';
+$("kbdHint").innerHTML = 'Amount does math (<kbd>=20+80</kbd>) · <kbd>Ctrl</kbd>+<kbd>K</kbd> jump to category search (or <kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>9</kbd>) · <kbd>Tab</kbd> moves field to field · <kbd>Enter</kbd> adds · <kbd>←</kbd>/<kbd>→</kbd> change month';
 $("catChips").addEventListener("click",e=>{ const t=e.target.closest(".chip"); if(!t)return; selCat=t.dataset.cat; renderChips(); });
 $("catChips").addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ const t=e.target.closest(".chip"); if(t){ e.preventDefault(); selCat=t.dataset.cat; renderChips(); } } });
 
@@ -1428,6 +1428,9 @@ $("calcHint").addEventListener("click",()=>{ const h=$("calcHint"); if(h.dataset
 const isTyping = el => el && (el.tagName==="INPUT"||el.tagName==="TEXTAREA"||el.tagName==="SELECT");
 document.addEventListener("keydown",e=>{
   if(!$("onboard").hidden) return;                 // don't hijack during onboarding
+  if((e.ctrlKey||e.metaKey) && (e.key==="k"||e.key==="K")){   // Ctrl/Cmd+K → jump to category search
+    e.preventDefault(); const s=$("catSearch"); s.scrollIntoView({block:"center"}); s.focus(); s.select(); return;
+  }
   if(e.altKey && !e.ctrlKey && !e.metaKey && e.key>="1" && e.key<="9"){
     const idx=+e.key-1; if(idx<CATS.length){ e.preventDefault(); selCat=CATS[idx].k; renderChips();
       const a=$("amt"); if(document.activeElement!==a && !isTyping(document.activeElement)) a.focus(); } return;
@@ -1451,9 +1454,11 @@ function addExpense(){
 }
 $("btnAdd").addEventListener("click",addExpense);
 $("note").addEventListener("keydown",e=>{ if(e.key==="Enter") addExpense(); });
-$("amt").addEventListener("keydown",e=>{
-  if(e.key==="Tab"){ const h=$("calcHint"); if(!h.hidden && h.dataset.val){ e.preventDefault(); $("amt").value=h.dataset.val; h.hidden=true; } return; }
-  if(e.key==="Enter") addExpense();
+$("amt").addEventListener("keydown",e=>{ if(e.key==="Enter") addExpense(); });   // Tab navigates naturally → date → category search
+$("amt").addEventListener("blur",()=>{                                          // leaving the box resolves a pending calculation
+  const v=$("amt").value.trim();
+  if(v && (v[0]==="=" || /\d[-+*/]/.test(v.replace(/^-/,"")))){ const r=evalAmount(v); if(r!=null && r>0){ $("amt").value=r; } }
+  $("calcHint").hidden=true;
 });
 
 function deleteTxn(id){
