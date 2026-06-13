@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PaisaPulse — money, made visible</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="pace-ok">
+<div class="aura"></div><div class="grain"></div><canvas id="cursorFx"></canvas>
+
+<header>
+  <div class="head-in">
+    <div class="brand">PaisaPulse<small>money, made visible</small></div>
+    <div class="month-nav">
+      <button id="prevM" aria-label="Previous month">‹</button>
+      <button id="monthLabel" class="month-label" aria-haspopup="true" title="Pick a month">—</button>
+      <button id="nextM" aria-label="Next month">›</button>
+      <div id="monthPicker" class="month-picker" hidden>
+        <div class="mp-head"><button id="mpPrevY" aria-label="Previous year">‹</button><span id="mpYear">—</span><button id="mpNextY" aria-label="Next year">›</button></div>
+        <div class="mp-grid" id="mpGrid"></div>
+        <button class="mp-today" id="mpToday">⌂ Jump to this month</button>
+      </div>
+    </div>
+    <div class="head-actions">
+      <span class="today-pill" id="todayPill" title="Today"></span>
+      <span class="badge" id="saveBadge"><span class="dot"></span><span id="saveBadgeTxt">checking…</span></span>
+      <button id="btnData">⇅ Data</button>
+      <button id="btnSettings">⚙ Budgets</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="hero">
+    <div class="greet" id="greet">
+      <span class="greet-line" id="greetLine">Hello</span><button class="greet-edit" id="greetEdit" title="Change your name" aria-label="Change your name">✎</button>
+      <div class="greet-tag" id="greetTag"></div>
+    </div>
+    <div class="eyebrow" id="heroEyebrow">Spent this month</div>
+    <div class="hero-amt" id="heroAmt">₹0</div>
+    <div class="hero-sub" id="heroSub"></div>
+  </section>
+
+  <section class="card rail-card">
+    <div class="rail">
+      <div class="rail-fill" id="railFill" style="width:0%"></div>
+      <div class="rail-proj" id="railProj" style="left:0%"></div>
+    </div>
+    <div class="rail-meta">
+      <span>spent <b id="railSpent">₹0</b></span>
+      <span id="railRight">budget <b id="railBudget">—</b></span>
+    </div>
+    <div id="paceMsg" class="ok"></div>
+  </section>
+
+  <section class="stats">
+    <div class="card stat"><div class="lbl">Today</div><div class="val" id="todayAmt">₹0</div><div class="sub" id="todaySub"></div></div>
+    <div class="card stat"><div class="lbl">Daily average</div><div class="val" id="avgAmt">₹0</div><div class="sub" id="avgSub"></div></div>
+    <div class="card stat"><div class="lbl">Projected month-end</div><div class="val" id="projAmt">₹0</div><div class="sub" id="projSub"></div></div>
+    <div class="card stat"><div class="lbl">Biggest category</div><div class="val" id="topCat" style="font-size:18px;line-height:1.3">—</div><div class="sub" id="topCatSub"></div></div>
+  </section>
+
+  <div id="seedBanner" class="note-banner" hidden>
+    <span>✦ Loaded your full history (Sep 2025 → Jun 2026) with the cleaned-up categories to get you started.</span>
+    <button id="seedDismiss">Got it</button>
+  </div>
+
+  <div class="grid">
+    <div class="col">
+      <section class="card">
+        <h2><span class="spark"></span>Add expense</h2>
+        <div class="amt-row">
+          <div class="amt-in"><span>₹</span><input id="amt" inputmode="text" placeholder="0" autocomplete="off"></div>
+          <input type="date" id="date">
+        </div>
+        <div class="calc-hint" id="calcHint" hidden></div>
+        <div class="cat-pick">
+          <input id="catSearch" placeholder="🔍 type to find a category…" autocomplete="off">
+          <div class="cat-suggest" id="catSuggest" hidden></div>
+        </div>
+        <div class="chips" id="catChips"></div>
+        <div class="kbd-hint" id="kbdHint"></div>
+        <input id="note" class="field-gap" placeholder="What was it? (optional)" autocomplete="off">
+        <button class="btn-glow" id="btnAdd">Add expense</button>
+      </section>
+
+      <section class="card">
+        <h2><span class="spark"></span>Category budgets</h2>
+        <div id="budgetList"></div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="card">
+        <h2 class="chart-head"><span class="h2-title"><span class="spark"></span><span id="chartTitle">Daily spend &amp; running total</span></span>
+          <span class="seg" id="chartToggle"><button class="seg-btn on" data-mode="daily">Daily</button><button class="seg-btn" data-mode="monthly">Monthly</button></span>
+        </h2>
+        <div class="chart-wrap" id="dailyChart"></div>
+        <div class="legend" id="chartLegend">
+          <span><i style="background:linear-gradient(90deg,var(--pulse),#f472b6)"></i>per-day spend</span>
+          <span><i style="background:var(--ice)"></i>running total</span>
+          <span><i style="background:var(--ink-faint)"></i>today</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2><span class="spark"></span>Day ledger</h2>
+        <div class="tbl-scroll">
+          <table>
+            <thead><tr><th>Day</th><th>Spent</th><th></th><th>Running total</th><th>Avg/day so far</th></tr></thead>
+            <tbody id="dayLedger"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <section class="card" style="margin-top:14px">
+    <h2 class="txn-head"><span class="h2-title"><span class="spark"></span>Transactions</span>
+      <span class="txn-tools">
+        <select id="txnSort" class="mini-select" title="Sort transactions">
+          <option value="date-desc">Newest first</option>
+          <option value="date-asc">Oldest first</option>
+          <option value="amt-desc">Amount: high → low</option>
+          <option value="amt-asc">Amount: low → high</option>
+          <option value="cat">By category</option>
+        </select>
+        <select id="txnFilter" class="mini-select" title="Filter by category"></select>
+        <label class="chk"><input type="checkbox" id="confirmDel"> confirm delete</label>
+      </span>
+    </h2>
+    <div id="txnList"></div>
+  </section>
+
+  <footer>Your data lives with <b>you</b> — back it up from <b>⇅ Data</b> and keep the file anywhere (Drive, pendrive, email to yourself). Plain text outlives every app.</footer>
+</div>
+
+<!-- Data modal -->
+<dialog id="dataModal">
+  <div class="m-head"><h3>Your data, your hands</h3><button class="btn-ghost" data-close>✕</button></div>
+  <div class="conn-card">
+    <div class="conn-row"><span class="conn-dot off" id="connDot"></span><span id="connTxt">Not connected</span></div>
+    <button id="btnChangeConn">Connect Google Drive</button>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-tab="import">Import</button>
+    <button class="tab" data-tab="export">Export / Backup</button>
+  </div>
+  <div id="tab-import">
+    <p class="hint">Migrate from Google Sheets: open a month tab → <code>File → Download → CSV</code> → drop it here. Needs columns like <code>Date, Category, Description, Amount</code> (extra columns are ignored). Dates like <code>2-Jun-2026</code>, <code>2026-06-02</code> or <code>02/06/2026</code> all work. Duplicates are skipped automatically. If Google Drive is connected, imported rows are written to your Sheet too.</p>
+    <input type="file" id="csvFile" accept=".csv,text/csv">
+    <p class="hint" style="margin-top:14px">…or paste CSV text:</p>
+    <textarea id="csvPaste" placeholder="Date,Category,Description,Amount&#10;2-Jun-2026,Dining & Snacks,Office lunch,318"></textarea>
+    <div class="m-row"><button class="btn-glow" id="btnImport">Import rows</button></div>
+  </div>
+  <div id="tab-export" hidden>
+    <p class="hint">Your live data syncs to Google Drive when connected (status above). These are extra one-off snapshots. <b>Backup (JSON)</b> = everything: expenses + budgets. <b>CSV</b> = expenses only, opens in any spreadsheet. They download to your <b>Downloads</b> folder.</p>
+    <div class="m-row">
+      <button class="btn-glow" id="btnBackup">⬇ Backup .json</button>
+      <button id="btnCsvOut">⬇ Export .csv</button>
+    </div>
+    <p class="hint" style="margin-top:14px">If downloads are blocked here, copy from below and save as a file:</p>
+    <textarea id="exportBox" readonly placeholder="Click a button above to generate…"></textarea>
+    <div class="m-row"><button id="btnCopyExport">Copy to clipboard</button></div>
+    <div class="divider"></div>
+    <p class="hint">Restore a backup: paste the JSON into the box above, then</p>
+    <div class="m-row"><button class="btn-danger" id="btnRestore">Restore from pasted JSON (replaces everything)</button></div>
+  </div>
+</dialog>
+
+<!-- Budgets / settings modal -->
+<dialog id="settingsModal">
+  <div class="m-head"><h3>Monthly budgets</h3><button class="btn-ghost" data-close>✕</button></div>
+  <p class="hint">Set a total cap, and optionally per-category caps. The page glow + warnings react to your pace against these.</p>
+  <div class="set-row"><label><b>Overall monthly budget</b></label><input id="bOverall" inputmode="numeric" placeholder="e.g. 15000"></div>
+  <div class="divider"></div>
+  <div id="bCats"></div>
+  <div class="m-row">
+    <button class="btn-glow" id="btnSaveBudgets">Save budgets</button>
+  </div>
+  <div class="divider"></div>
+  <p class="hint" style="margin-bottom:8px"><b>Reset this device</b> — clears only the local copy in this browser. Your Google Sheet (the real database) is <b>never</b> touched; just reload or reconnect to pull everything back. Not connected? Export a backup first.</p>
+  <div class="reset-row"><input id="wipeConfirm" placeholder="type RESET to confirm" autocomplete="off"><button class="btn-danger" id="btnWipe" disabled>Reset local copy</button></div>
+</dialog>
+
+<div id="toast"><span id="toastMsg"></span><button id="toastAct" hidden>Undo</button></div>
+
+<!-- Onboarding overlay -->
+<div id="onboard" class="onboard" hidden>
+  <div class="ob-box">
+    <div class="ob-eyebrow">Welcome to PaisaPulse</div>
+    <h1 class="ob-title">Let's make your money data permanent.</h1>
+    <p class="ob-lead">Your expenses will live in a Google Sheet inside <b>your own</b> Google Drive — a free, private database only you can see. No sign-in, no API keys, nothing for me to host.</p>
+
+    <div id="obChoose" class="ob-choose">
+      <button class="ob-pick" id="obPickNew">
+        <span class="ob-pick-emoji">🌱</span>
+        <span class="ob-pick-t">I'm new — set up a fresh Sheet</span>
+        <span class="ob-pick-d">Create a brand-new Google Sheet and connect it. Full step-by-step guide.</span>
+      </button>
+      <button class="ob-pick" id="obPickExisting">
+        <span class="ob-pick-emoji">🔗</span>
+        <span class="ob-pick-t">I already have a PaisaPulse Sheet</span>
+        <span class="ob-pick-d">Switching laptops or reconnecting? Just paste your existing Sheet's URL and pull all your data back.</span>
+      </button>
+    </div>
+
+    <div id="obFlow" hidden>
+      <button class="ob-back" id="obBack">‹ back</button>
+
+      <div class="ob-step" id="obStep1">
+        <div class="ob-num">1</div>
+        <div class="ob-body">
+          <h4>Create your Sheet</h4>
+          <p>Open a fresh Google Sheet — this becomes your private database. Name it anything (e.g. "PaisaPulse Data"). Leave it open for step 2.</p>
+          <div class="m-row"><button class="btn-glow" id="obNewSheet">📄 Open a blank Google Sheet ↗</button></div>
+        </div>
+      </div>
+
+      <div class="ob-step" id="obStep2">
+        <div class="ob-num">2</div>
+        <div class="ob-body">
+          <h4>Add the script &amp; deploy it</h4>
+          <p>A tiny script turns your Sheet into a private API. In your Sheet open <code>Extensions → Apps Script</code>, delete the sample, paste the script below, and Save.</p>
+          <div class="m-row">
+            <button class="btn-glow" id="obCopyScript">📋 Copy the script</button>
+            <button class="btn-ghost" id="obShowHow">Show deploy steps</button>
+          </div>
+          <textarea id="scriptCode" class="field-gap" readonly spellcheck="false" style="min-height:120px"></textarea>
+          <div class="ob-howto" id="obHowto" hidden>
+            <ol>
+              <li>In your Sheet: <code>Extensions → Apps Script</code></li>
+              <li>Delete the sample code, paste the script above, click <b>Save</b> 💾</li>
+              <li><code>Deploy → New deployment</code> → select type <b>Web app</b></li>
+              <li>Execute as <b>Me</b>, Who has access <b>Anyone</b> → <b>Deploy</b></li>
+              <li>Authorize when prompted, then <b>copy the Web app URL</b> (ends in <code>/exec</code>)</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="ob-step" id="obStep3">
+        <div class="ob-num" id="obStep3Num">3</div>
+        <div class="ob-body">
+          <h4 id="obStep3Title">Paste your URL</h4>
+          <p id="obStep3Desc">Paste the Web app URL below and connect — I'll verify it can talk to your Sheet before saving anything.</p>
+          <input id="cloudUrlInput" class="field-gap" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+          <div class="m-row"><button class="btn-glow" id="obConnect">Connect &amp; verify</button></div>
+          <div class="ob-verify" id="obVerify"></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="ob-skip" id="obSkip">I'll do this later — keep my data on this device for now</button>
+  </div>
+</div>
+
+<!-- Apps Script source (non-executing template — shown/copied during onboarding) -->
+<script type="text/plain" id="ppScriptSrc">/*** PaisaPulse — Google Apps Script backend (bind this to your Sheet) ***/
+var SHEET_EXP = 'Expenses';
+var SHEET_BUD = 'Budgets';
+var HEADERS   = ['ID','Date','Category','Note','Amount','CreatedAt'];
+
+function doGet(e){
+  return json(readAll());
+}
+
+function doPost(e){
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); } catch(err){ return json({ok:false, error:'busy, try again'}); }
+  try {
+    var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    switch (body.action) {
+      case 'ping':    return json({ok:true});
+      case 'add':     addRow(body.expense);                                  return json({ok:true});
+      case 'delete':  return json({ok:true, deleted: deleteRow(body.id)});
+      case 'budgets': writeBudgets(body.budgets || {});                      return json({ok:true});
+      case 'import':  return json(merge({ok:true}, importRows(body.expenses || [], body.replace === true)));
+      default:        return json({ok:false, error:'unknown action'});
+    }
+  } catch (err) {
+    return json({ok:false, error: String(err)});
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function ss(){ return SpreadsheetApp.getActiveSpreadsheet(); }
+
+function expSheet(){
+  var s = ss(), sh = s.getSheetByName(SHEET_EXP);
+  if (!sh) { sh = s.getSheets()[0]; sh.setName(SHEET_EXP); }
+  if (sh.getLastRow() === 0) {
+    sh.getRange(1,1,1,HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
+    sh.getRange('B:B').setNumberFormat('@');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function budSheet(){
+  var s = ss(), sh = s.getSheetByName(SHEET_BUD);
+  if (!sh) sh = s.insertSheet(SHEET_BUD);
+  if (sh.getLastRow() === 0) sh.getRange(1,1,1,2).setValues([['Key','Value']]).setFontWeight('bold');
+  return sh;
+}
+
+function readAll(){
+  var sh = expSheet(), last = sh.getLastRow(), expenses = [];
+  if (last > 1) {
+    var vals = sh.getRange(2,1,last-1,HEADERS.length).getValues();
+    for (var i=0;i<vals.length;i++){
+      var r = vals[i];
+      if (r[0]==='' && r[1]==='' && r[4]==='') continue;
+      expenses.push({ id: String(r[0]), date: fmtDate(r[1]), cat: String(r[2]),
+        note: String(r[3]), amount: Number(r[4]) || 0, createdAt: r[5] ? String(r[5]) : '' });
+    }
+  }
+  return {ok:true, expenses: expenses, budgets: readBudgets()};
+}
+
+function readBudgets(){
+  var sh = budSheet(), last = sh.getLastRow(), out = {overall:null, cats:{}};
+  if (last > 1) {
+    var vals = sh.getRange(2,1,last-1,2).getValues();
+    for (var i=0;i<vals.length;i++){
+      var k = String(vals[i][0]), v = vals[i][1];
+      if (k === 'overall') out.overall = (v === '' ? null : Number(v));
+      else if (k) out.cats[k] = Number(v) || 0;
+    }
+  }
+  return out;
+}
+
+function addRow(exp){
+  if (!exp) return;
+  var sh = expSheet();
+  if (exp.id && findRowById(sh, exp.id) > 0) return;
+  sh.appendRow([ exp.id || '', fmtDate(exp.date), exp.cat || '', exp.note || '',
+                 Number(exp.amount) || 0, exp.createdAt || new Date().toISOString() ]);
+}
+
+function deleteRow(id){
+  var sh = expSheet(), row = findRowById(sh, id);
+  if (row > 0) { sh.deleteRow(row); return 1; }
+  return 0;
+}
+
+function importRows(rows, replace){
+  var sh = expSheet();
+  if (replace) { var l = sh.getLastRow(); if (l > 1) sh.deleteRows(2, l-1); }
+  var seen = {}, last = sh.getLastRow();
+  if (last > 1) {
+    var ex = sh.getRange(2,1,last-1,HEADERS.length).getValues();
+    for (var i=0;i<ex.length;i++){ seen['id:'+String(ex[i][0])] = true; seen[sig(ex[i])] = true; }
+  }
+  var out = [], added = 0, skipped = 0;
+  for (var j=0;j<rows.length;j++){
+    var e = rows[j], row = [ e.id||'', fmtDate(e.date), e.cat||'', e.note||'',
+                             Number(e.amount)||0, e.createdAt || new Date().toISOString() ];
+    if (seen['id:'+String(e.id)] || seen[sig(row)]) { skipped++; continue; }
+    seen['id:'+String(e.id)] = true; seen[sig(row)] = true;
+    out.push(row); added++;
+  }
+  if (out.length) sh.getRange(sh.getLastRow()+1, 1, out.length, HEADERS.length).setValues(out);
+  return {added: added, skipped: skipped};
+}
+
+function writeBudgets(b){
+  var sh = budSheet(), last = sh.getLastRow();
+  if (last > 1) sh.deleteRows(2, last-1);
+  var rows = [];
+  if (b.overall != null && b.overall !== '') rows.push(['overall', Number(b.overall)]);
+  var cats = b.cats || {};
+  for (var k in cats) if (cats.hasOwnProperty(k)) rows.push([k, Number(cats[k]) || 0]);
+  if (rows.length) sh.getRange(2,1,rows.length,2).setValues(rows);
+}
+
+function findRowById(sh, id){
+  var last = sh.getLastRow(); if (last < 2) return -1;
+  var ids = sh.getRange(2,1,last-1,1).getValues();
+  for (var i=0;i<ids.length;i++) if (String(ids[i][0]) === String(id)) return i+2;
+  return -1;
+}
+function sig(r){ return [fmtDate(r[1]), r[2], r[3], Number(r[4])||0].join('|'); }
+function fmtDate(v){
+  if (v instanceof Date){
+    return v.getFullYear() + '-' + ('0'+(v.getMonth()+1)).slice(-2) + '-' + ('0'+v.getDate()).slice(-2);
+  }
+  return String(v || '');
+}
+function merge(a,b){ for (var k in b) if (b.hasOwnProperty(k)) a[k]=b[k]; return a; }
+function json(obj){
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+</script>
+
+<script src="js/config.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/calculator.js"></script>
+<script src="js/cloud.js"></script>
+<script src="js/search.js"></script>
+<script src="js/chart.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/effects.js"></script>
+<script src="js/keyboard.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

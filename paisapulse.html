@@ -448,6 +448,7 @@ footer b{color:var(--ink-dim)}
   .month-picker{left:auto;right:0;transform:none}
   .txn-tools{width:100%;justify-content:space-between}
 }
+
 </style>
 </head>
 <body class="pace-ok">
@@ -581,6 +582,7 @@ footer b{color:var(--ink-dim)}
   <footer>Your data lives with <b>you</b> — back it up from <b>⇅ Data</b> and keep the file anywhere (Drive, pendrive, email to yourself). Plain text outlives every app.</footer>
 </div>
 
+<!-- Data modal -->
 <dialog id="dataModal">
   <div class="m-head"><h3>Your data, your hands</h3><button class="btn-ghost" data-close>✕</button></div>
   <div class="conn-card">
@@ -613,6 +615,7 @@ footer b{color:var(--ink-dim)}
   </div>
 </dialog>
 
+<!-- Budgets / settings modal -->
 <dialog id="settingsModal">
   <div class="m-head"><h3>Monthly budgets</h3><button class="btn-ghost" data-close>✕</button></div>
   <p class="hint">Set a total cap, and optionally per-category caps. The page glow + warnings react to your pace against these.</p>
@@ -629,6 +632,7 @@ footer b{color:var(--ink-dim)}
 
 <div id="toast"><span id="toastMsg"></span><button id="toastAct" hidden>Undo</button></div>
 
+<!-- Onboarding overlay -->
 <div id="onboard" class="onboard" hidden>
   <div class="ob-box">
     <div class="ob-eyebrow">Welcome to PaisaPulse</div>
@@ -698,7 +702,7 @@ footer b{color:var(--ink-dim)}
   </div>
 </div>
 
-<!-- The Apps Script users paste into their Sheet (Extensions → Apps Script). Non-executing template. -->
+<!-- Apps Script source (non-executing template — shown/copied during onboarding) -->
 <script type="text/plain" id="ppScriptSrc">/*** PaisaPulse — Google Apps Script backend (bind this to your Sheet) ***/
 var SHEET_EXP = 'Expenses';
 var SHEET_BUD = 'Budgets';
@@ -728,7 +732,6 @@ function doPost(e){
   }
 }
 
-/* ---------- sheets (self-initializing) ---------- */
 function ss(){ return SpreadsheetApp.getActiveSpreadsheet(); }
 
 function expSheet(){
@@ -736,7 +739,7 @@ function expSheet(){
   if (!sh) { sh = s.getSheets()[0]; sh.setName(SHEET_EXP); }
   if (sh.getLastRow() === 0) {
     sh.getRange(1,1,1,HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
-    sh.getRange('B:B').setNumberFormat('@'); // keep dates as plain text (no timezone drift)
+    sh.getRange('B:B').setNumberFormat('@');
     sh.setFrozenRows(1);
   }
   return sh;
@@ -749,7 +752,6 @@ function budSheet(){
   return sh;
 }
 
-/* ---------- reads ---------- */
 function readAll(){
   var sh = expSheet(), last = sh.getLastRow(), expenses = [];
   if (last > 1) {
@@ -757,11 +759,8 @@ function readAll(){
     for (var i=0;i<vals.length;i++){
       var r = vals[i];
       if (r[0]==='' && r[1]==='' && r[4]==='') continue;
-      expenses.push({
-        id: String(r[0]), date: fmtDate(r[1]), cat: String(r[2]),
-        note: String(r[3]), amount: Number(r[4]) || 0,
-        createdAt: r[5] ? String(r[5]) : ''
-      });
+      expenses.push({ id: String(r[0]), date: fmtDate(r[1]), cat: String(r[2]),
+        note: String(r[3]), amount: Number(r[4]) || 0, createdAt: r[5] ? String(r[5]) : '' });
     }
   }
   return {ok:true, expenses: expenses, budgets: readBudgets()};
@@ -780,11 +779,10 @@ function readBudgets(){
   return out;
 }
 
-/* ---------- writes ---------- */
 function addRow(exp){
   if (!exp) return;
   var sh = expSheet();
-  if (exp.id && findRowById(sh, exp.id) > 0) return; // idempotent — safe to retry
+  if (exp.id && findRowById(sh, exp.id) > 0) return;
   sh.appendRow([ exp.id || '', fmtDate(exp.date), exp.cat || '', exp.note || '',
                  Number(exp.amount) || 0, exp.createdAt || new Date().toISOString() ]);
 }
@@ -825,7 +823,6 @@ function writeBudgets(b){
   if (rows.length) sh.getRange(2,1,rows.length,2).setValues(rows);
 }
 
-/* ---------- helpers ---------- */
 function findRowById(sh, id){
   var last = sh.getLastRow(); if (last < 2) return -1;
   var ids = sh.getRange(2,1,last-1,1).getValues();
@@ -846,9 +843,14 @@ function json(obj){
 </script>
 
 <script>
-/* ================= PaisaPulse ================= */
 "use strict";
+
+/* ── config.js ── */
+/* ── config.js — constants, pure helpers, shared DOM accessor ── */
+
 const $ = id => document.getElementById(id);
+const NOW = new Date();
+
 const CATS = [
   {k:"dining",   n:"Eating Out & Snacks",     e:"🍔"},
   {k:"commute",  n:"Commute & Travel",        e:"🚕"},
@@ -866,887 +868,1021 @@ const CATS = [
   {k:"invest",   n:"Investments & Trading",   e:"📈"},
   {k:"misc",     n:"Miscellaneous",           e:"❓"}
 ];
-const catByKey = k => CATS.find(c=>c.k===k) || CATS[CATS.length-1];
-const fmt = n => "₹" + new Intl.NumberFormat("en-IN",{maximumFractionDigits:0}).format(Math.round(n||0));
-const pad = n => String(n).padStart(2,"0");
-const todayISO = () => { const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); };
+const catByKey = k => CATS.find(c => c.k === k) || CATS[CATS.length - 1];
+
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const MABBR = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+const MABBR  = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
 
-/* ---------- storage adapter: Claude artifact / browser / memory ---------- */
-const Store = {
-  mode:"memory", mem:{},
-  async init(){
-    if (typeof window!=="undefined" && window.storage && typeof window.storage.get==="function"){
-      this.mode="claude"; return;
-    }
-    try{ localStorage.setItem("__pp_t","1"); localStorage.removeItem("__pp_t"); this.mode="local"; }
-    catch(e){ this.mode="memory"; }
-  },
-  async get(k){
-    if(this.mode==="claude"){ try{ const r=await window.storage.get(k); return r&&r.value!=null?r.value:null; }catch(e){ return null; } }
-    if(this.mode==="local"){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
-    return Object.prototype.hasOwnProperty.call(this.mem,k)?this.mem[k]:null;
-  },
-  async set(k,v){
-    if(this.mode==="claude"){ try{ await window.storage.set(k,v); }catch(e){ console.error(e); } return; }
-    if(this.mode==="local"){ try{ localStorage.setItem(k,v); }catch(e){ console.error(e); } return; }
-    this.mem[k]=v;
-  }
-};
-const KEY_EXP="pp.expenses.v1", KEY_BUD="pp.budgets.v1", KEY_META="pp.meta.v1";
+const fmt      = n  => "₹" + new Intl.NumberFormat("en-IN", {maximumFractionDigits:0}).format(Math.round(n || 0));
+const pad      = n  => String(n).padStart(2, "0");
+const todayISO = () => { const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); };
+const uid      = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc      = s  => String(s).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
 
-/* ---------- state ---------- */
-let expenses = [];                 // {id,date:'YYYY-MM-DD',amount,cat,note}
-let budgets  = {overall:null,cats:{}};
-let meta     = {seedDismissed:false};
-const now = new Date();
-let view = {y:now.getFullYear(), m:now.getMonth()};   // viewed month
-let selCat = "dining";
-let saveTimer=null, lastDeleted=null, toastTimer=null;
-let cloudUrl=null, outbox=[], flushing=false, retryT=null;
-let userName="";
-let txnCat="";                 // transactions category filter ("" = all)
-let txnSort="date-desc";       // transactions sort
-let chartMode="daily";         // chart: daily | monthly
-const KEY_NAME="pp.name.v1";
+/* localStorage keys */
+const KEY_EXP  = "pp.expenses.v1";
+const KEY_BUD  = "pp.budgets.v1";
+const KEY_META = "pp.meta.v1";
+const KEY_NAME = "pp.name.v1";
+const KEY_URL  = "pp.cloud.url.v1";
+const KEY_OUT  = "pp.outbox.v1";
 
-function persist(){              // local cache — instant, always-on safety net (mirrors the cloud)
-  clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>{
-    Store.set(KEY_EXP, JSON.stringify(expenses));
-    Store.set(KEY_BUD, JSON.stringify(budgets));
-    Store.set(KEY_META, JSON.stringify(meta));
-  },200);
-}
+const URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/;
 
-/* ---------- permanent cloud storage via the user's own Google Apps Script ---------- */
-const KEY_URL="pp.cloud.url.v1", KEY_OUT="pp.outbox.v1";
-const URL_RE=/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/;
-const catKeyFromName = n => { const t=String(n||"").trim().toLowerCase();
-  const hit=CATS.find(c=>c.n.toLowerCase()===t); return hit?hit.k:matchCat(n); };
-const catNameFromKey = k => catByKey(k).n;
-const expToRow = e => ({id:e.id, date:e.date, cat:catNameFromKey(e.cat), note:e.note||"", amount:e.amount, createdAt:e.createdAt||new Date().toISOString()});
-const rowToExp = r => ({id:r.id||uid(), date:parseDate(r.date)||String(r.date||""), amount:+r.amount||0, cat:catKeyFromName(r.cat), note:r.note||"", createdAt:r.createdAt||""});
-
-/* one network call. GET when no body; POST as text/plain to dodge the CORS preflight Apps Script can't answer */
-async function cloudCall(body){
-  const init = body
-    ? {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify(body), redirect:"follow"}
-    : {method:"GET", redirect:"follow"};
-  const r = await fetch(cloudUrl, init);
-  if(!r.ok) throw new Error("HTTP "+r.status);
-  let j; try{ j=JSON.parse(await r.text()); }catch(e){ throw new Error("bad response from script"); }
-  if(j && j.ok===false) throw new Error(j.error||"script error");
-  return j;
-}
-async function cloudPing(url){
-  try{ const r=await fetch(url,{method:"GET",redirect:"follow"}); if(!r.ok) return false;
-    const j=JSON.parse(await r.text()); return !!(j && (j.ok || Array.isArray(j.expenses))); }
-  catch(e){ return false; }
-}
-function applyCloudData(j){
-  const rows = Array.isArray(j) ? j : (j.expenses||[]);
-  expenses = rows.map(rowToExp).filter(e=>e.date && e.amount>0);
-  if(j.budgets && typeof j.budgets==="object")
-    budgets = {overall:j.budgets.overall||null, cats:j.budgets.cats||{}};
-  sortExp();
-  Store.set(KEY_EXP, JSON.stringify(expenses));
-  Store.set(KEY_BUD, JSON.stringify(budgets));
-}
-async function loadFromCloud(){
-  setSync("loading");
-  try{ applyCloudData(await cloudCall(null)); setSync("saved"); return true; }
-  catch(e){ console.error("cloud load failed",e); setSync("error"); return false; }
-}
-
-/* outbox: queued writes, replayed until the Sheet confirms — survives reloads so nothing is ever lost */
-function loadOutbox(){ try{ outbox=JSON.parse(localStorage.getItem(KEY_OUT))||[]; }catch(e){ outbox=[]; } }
-function saveOutbox(){ try{ localStorage.setItem(KEY_OUT, JSON.stringify(outbox)); }catch(e){} }
-function opBody(op){
-  if(op.op==="add")     return {action:"add", expense:expToRow(op.expense)};
-  if(op.op==="delete")  return {action:"delete", id:op.id};
-  if(op.op==="budgets") return {action:"budgets", budgets:op.budgets};
-  if(op.op==="import")  return {action:"import", expenses:op.expenses.map(expToRow)};
-  if(op.op==="replace") return {action:"import", replace:true, expenses:op.expenses.map(expToRow)};
-}
-async function flushOutbox(){
-  if(flushing || !cloudUrl || !outbox.length) return;
-  flushing=true; setSync("saving");
-  try{
-    while(outbox.length){ await cloudCall(opBody(outbox[0])); outbox.shift(); saveOutbox(); }
-    setSync("saved"); flushing=false;
-  }catch(e){
-    console.error("sync failed",e); flushing=false; setSync("error");
-    if(!retryT) retryT=setTimeout(()=>{ retryT=null; flushOutbox(); }, 5000);   // retry after 5s, non-blocking
-  }
-}
-function cloudSync(op){            // caller already updated local state; this pushes it up
-  if(!cloudUrl) return;
-  outbox.push(op); saveOutbox(); flushOutbox();
-}
-function setSync(state){
-  const badge=$("saveBadge"), bt=$("saveBadgeTxt"); if(!badge) return;
-  badge.className="badge";
-  if(!cloudUrl){ bt.textContent = Store.mode==="local" ? "Saved on this device" : "Saved this session"; return; }
-  if(state==="loading"){ badge.classList.add("saving"); bt.textContent="Loading…"; }
-  else if(state==="saving"){ badge.classList.add("saving"); bt.textContent="Saving…"; }
-  else if(state==="error"){ badge.classList.add("err"); bt.textContent="Couldn't reach Drive — retrying"; }
-  else { badge.classList.add("synced"); bt.textContent="Saved to Drive ✓"; }
-}
-function updateConnUI(){
-  const dot=$("connDot"), txt=$("connTxt"), btn=$("btnChangeConn");
-  if(dot){ dot.className = "conn-dot"+(cloudUrl?"":" off"); }
-  if(txt){ txt.textContent = cloudUrl ? "Connected to your Google Sheet" : "Not connected — data is on this device only"; }
-  if(btn){ btn.textContent = cloudUrl ? "Change / disconnect Drive" : "Connect Google Drive"; }
-  setSync("saved");
-}
-
-/* ---------- parsing ---------- */
-function evalAmount(s){            // safe calculator: "=20+80", "20*3", "(100-15)/2"
-  let str=String(s||"").replace(/[₹,\s]/g,"");
-  if(str[0]==="=") str=str.slice(1);
-  if(!str || !/\d/.test(str) || !/^[-+*/().\d]+$/.test(str)) return null;
-  try{ const v=Function('"use strict";return ('+str+')')();
-    return (typeof v==="number" && isFinite(v)) ? v : null; }
-  catch(e){ return null; }
-}
-function parseAmount(s){
-  if(typeof s==="number") return s;
-  const str=String(s||"").trim();
-  if(str[0]==="=" || /[-+*/()]/.test(str.replace(/^-/,""))) { const r=evalAmount(str); if(r!=null) return r; }
-  const n = parseFloat(str.replace(/[₹,\s]/g,""));
-  return isNaN(n)?null:n;
-}
-function parseDate(s){
-  if(!s) return null;
-  s=String(s).trim();
-  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);                 // 2026-06-02
-  if(m) return m[1]+"-"+pad(+m[2])+"-"+pad(+m[3]);
-  m = s.match(/^(\d{1,2})[-\/\s]([A-Za-z]{3,})[-\/\s,]+(\d{2,4})$/); // 2-Jun-2026 / 2 June 2026
-  if(m){ const mo=MABBR[m[2].slice(0,3).toLowerCase()]; if(mo==null)return null;
-    let y=+m[3]; if(y<100)y+=2000; return y+"-"+pad(mo+1)+"-"+pad(+m[1]); }
-  m = s.match(/^([A-Za-z]{3,})[-\s]+(\d{1,2})[,\s]+(\d{2,4})$/);     // Jun 2, 2026
-  if(m){ const mo=MABBR[m[1].slice(0,3).toLowerCase()]; if(mo==null)return null;
-    let y=+m[3]; if(y<100)y+=2000; return y+"-"+pad(mo+1)+"-"+pad(+m[2]); }
-  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);          // 02/06/2026 -> DD/MM
-  if(m){ let y=+m[3]; if(y<100)y+=2000; return y+"-"+pad(+m[2])+"-"+pad(+m[1]); }
-  return null;
-}
-function matchCat(s){
-  const t=String(s||"").toLowerCase();
-  if(!t) return "misc";
-  for(const c of CATS){ if(t.includes(c.n.toLowerCase())) return c.k; }
-  const words={dining:"dining",snack:"dining",restaurant:"dining",cafe:"dining",
-    grocer:"groceries",food:"groceries",household:"groceries",essential:"groceries",
-    commute:"commute",travel:"commute",transport:"commute",uber:"commute",rapido:"commute",auto:"commute",
-    subscription:"subs",subs:"subs",bill:"subs",recharge:"subs",
-    entertainment:"ent",game:"ent",movie:"ent",lifestyle:"ent",
-    "personal care":"care",grooming:"care",haircut:"care",salon:"care",
-    health:"health",medical:"health",medicine:"health",pharma:"health",
-    housing:"housing",rent:"housing",utilit:"housing",electric:"housing",
-    debt:"debt",emi:"debt",loan:"debt",
-    learn:"learn",course:"learn",book:"learn",education:"learn",
-    gift:"gifts",treat:"gifts",social:"gifts",
-    lend:"lending",lent:"lending",
-    asset:"assets",purchase:"assets",gadget:"assets",
-    invest:"invest",trading:"invest",crypto:"invest",saving:"invest"};
-  for(const w in words){ if(t.includes(w)) return words[w]; }
-  return "misc";
-}
-function parseCSV(text){
-  const rows=[]; let row=[],cell="",q=false;
-  for(let i=0;i<text.length;i++){
-    const ch=text[i];
-    if(q){ if(ch==='"'){ if(text[i+1]==='"'){cell+='"';i++;} else q=false; } else cell+=ch; }
-    else if(ch==='"') q=true;
-    else if(ch===','){ row.push(cell); cell=""; }
-    else if(ch==='\n'||ch==='\r'){ if(ch==='\r'&&text[i+1]==='\n')i++;
-      row.push(cell); cell=""; if(row.some(x=>x.trim()!=="")) rows.push(row); row=[]; }
-    else cell+=ch;
-  }
-  row.push(cell); if(row.some(x=>x.trim()!=="")) rows.push(row);
-  return rows;
-}
-function importCSV(text){
-  const rows=parseCSV(text);
-  if(!rows.length) return {added:0,skipped:0,bad:0};
-  // find header row (first row containing 'date' and 'amount'-ish)
-  let hIdx=-1, map=null;
-  for(let i=0;i<Math.min(rows.length,10);i++){
-    const low=rows[i].map(c=>c.trim().toLowerCase());
-    const di=low.findIndex(c=>c.includes("date"));
-    const ai=low.findIndex(c=>c==="amount"||c.includes("amount")||c==="amt"||c.includes("cost")||c.includes("price"));
-    if(di>-1&&ai>-1){ hIdx=i;
-      map={date:di,amount:ai,
-        cat:low.findIndex(c=>c.includes("categ")),
-        note:low.findIndex(c=>c.includes("desc")||c.includes("note")||c.includes("item")||c.includes("detail"))};
-      break; }
-  }
-  let added=0,skipped=0,bad=0; const addedRows=[];
-  const seen=new Set(expenses.map(e=>e.date+"|"+e.amount+"|"+e.cat+"|"+(e.note||"")));
-  const body = hIdx>-1 ? rows.slice(hIdx+1) : rows;
-  for(const r of body){
-    let d,a,c,n;
-    if(map){ d=parseDate(r[map.date]); a=parseAmount(r[map.amount]);
-      c=matchCat(map.cat>-1?r[map.cat]:""); n=(map.note>-1?r[map.note]:"")||""; }
-    else { // headerless: try Date,Category,Description,Amount or Date,Description,Amount
-      d=parseDate(r[0]);
-      if(r.length>=4){ c=matchCat(r[1]); n=r[2]||""; a=parseAmount(r[3]); }
-      else { c="misc"; n=r[1]||""; a=parseAmount(r[2]); }
-    }
-    if(!d||a==null||a<=0){ bad++; continue; }
-    n=String(n).trim();
-    const sig=d+"|"+a+"|"+c+"|"+n;
-    if(seen.has(sig)){ skipped++; continue; }
-    seen.add(sig);
-    const exp={id:uid(),date:d,amount:a,cat:c,note:n,createdAt:new Date().toISOString()};
-    expenses.push(exp); addedRows.push(exp);
-    added++;
-  }
-  if(added){ sortExp(); persist(); }
-  return {added,skipped,bad,rows:addedRows};
-}
-const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-const sortExp = () => expenses.sort((a,b)=> a.date<b.date?-1 : a.date>b.date?1 : 0);
-
-/* ---------- seed: empty for the public release. New users start clean and connect their own Google Sheet (or import a CSV). ---------- */
+/* Public-release seed — empty so new users start clean */
 const SEED = [];
 
-/* ================= computations ================= */
-function monthData(y,m){
-  const days = new Date(y,m+1,0).getDate();
-  const isCur = y===now.getFullYear() && m===now.getMonth();
-  const isPast = y<now.getFullYear() || (y===now.getFullYear() && m<now.getMonth());
-  const elapsed = isCur ? now.getDate() : (isPast ? days : 0);
-  const list = expenses.filter(e=>{ const d=e.date.split("-"); return +d[0]===y && +d[1]===m+1; });
-  const perDay = Array(days+1).fill(0);
-  const byCat = {};
-  let spent=0;
-  for(const e of list){ const dd=+e.date.split("-")[2]; perDay[dd]+=e.amount; spent+=e.amount; byCat[e.cat]=(byCat[e.cat]||0)+e.amount; }
-  const cum=Array(days+1).fill(0);
-  for(let d=1;d<=days;d++) cum[d]=cum[d-1]+perDay[d];
-  const avg = elapsed>0 ? spent/elapsed : 0;
-  const proj = isCur ? avg*days : spent;
-  return {y,m,days,isCur,isPast,elapsed,list,perDay,cum,byCat,spent,avg,proj};
-}
 
-/* ================= rendering ================= */
-function animateNum(el, target, prefixFmt){
-  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if(reduce){ el.textContent=prefixFmt(target); return; }
-  const start=performance.now(), dur=900, from=0;
-  function step(t){ const p=Math.min((t-start)/dur,1), ease=1-Math.pow(1-p,3);
-    el.textContent=prefixFmt(from+(target-from)*ease);
-    if(p<1) requestAnimationFrame(step); }
-  requestAnimationFrame(step);
-}
+/* ── storage.js ── */
+/* ── storage.js — unified storage adapter (localStorage / memory / Claude artifact) ── */
 
-function render(){
-  const D = monthData(view.y, view.m);
-  const P = monthData(view.m===0?view.y-1:view.y, view.m===0?11:view.m-1); // previous month
-  $("monthLabel").textContent = MONTHS[view.m].slice(0,3)+" "+view.y;
-  $("nextM").disabled = (view.y===now.getFullYear() && view.m===now.getMonth());
-  $("heroEyebrow").textContent = D.isCur ? "Spent so far in "+MONTHS[view.m] : "Spent in "+MONTHS[view.m]+" "+view.y;
-  animateNum($("heroAmt"), D.spent, fmt);
-
-  // hero sub: vs last month
-  if(P.spent>0){
-    const diff=D.spent-P.spent, sign=diff<=0?"down":"up";
-    $("heroSub").innerHTML = "across <b>"+D.list.length+"</b> expenses · <span class='"+sign+"'>"+
-      (diff<=0?"▼ ":"▲ ")+fmt(Math.abs(diff))+"</span> vs "+MONTHS[P.m].slice(0,3)+" ("+fmt(P.spent)+")";
-  } else {
-    $("heroSub").innerHTML = "across <b>"+D.list.length+"</b> expenses";
+class StorageAdapter {
+  constructor() {
+    this.mode = "memory";
+    this.mem  = {};
   }
 
-  // pace + rail + aura
-  const B = budgets.overall;
-  let pace="ok", msg="";
-  if(D.isCur){
-    if(B){
-      if(D.spent>B){ pace="over"; msg="⛔ Over budget by "+fmt(D.spent-B)+". Every rupee from here is borrowed from July-you."; }
-      else if(D.proj>B){ pace="warn"; msg="⚠ On pace for "+fmt(D.proj)+" — that overshoots your "+fmt(B)+" budget by "+fmt(D.proj-B)+". Trim ~"+fmt(Math.max(0,(B-D.spent)/Math.max(1,D.days-D.elapsed)))+"/day to land safe."; }
-      else { pace="ok"; msg="✓ On pace for "+fmt(D.proj)+" — inside your "+fmt(B)+" budget with "+fmt(B-D.proj)+" breathing room."; }
-      $("railFill").style.width = Math.min(100, D.spent/B*100)+"%";
-      $("railProj").style.left = Math.min(100, D.proj/B*100)+"%";
-      $("railProj").style.display="block";
-      $("railRight").innerHTML = "budget <b id='railBudget'>"+fmt(B)+"</b>";
-    } else {
-      pace="ok"; msg="On pace for "+fmt(D.proj)+" by "+MONTHS[D.m].slice(0,3)+" "+D.days+". Set a budget (⚙) and I'll glow amber when you drift.";
-      const ref=Math.max(D.proj,D.spent,1);
-      $("railFill").style.width=(D.spent/ref*100)+"%";
-      $("railProj").style.left=Math.min(100,D.proj/ref*100)+"%";
-      $("railProj").style.display="block";
-      $("railRight").innerHTML = "projected <b>"+fmt(D.proj)+"</b>";
+  async init() {
+    if (typeof window !== "undefined" && window.storage && typeof window.storage.get === "function") {
+      this.mode = "claude"; return;
     }
-  } else {
-    msg = D.spent>0 ? "Month closed at "+fmt(D.spent)+" · daily average "+fmt(D.avg)+"." : "No expenses logged this month.";
-    if(B){ pace = D.spent>B?"over":"ok";
-      $("railFill").style.width=Math.min(100,B?D.spent/B*100:0)+"%";
-      $("railRight").innerHTML="budget <b>"+fmt(B)+"</b>";
-    } else { $("railFill").style.width=D.spent>0?"100%":"0%"; $("railRight").innerHTML=""; }
-    $("railProj").style.display="none";
-  }
-  document.body.className="pace-"+pace;
-  $("paceMsg").className=pace; $("paceMsg").textContent=msg;
-  $("railSpent").textContent=fmt(D.spent);
-
-  // stat cards
-  const todayD = now.getDate();
-  const tAmt = D.isCur ? D.perDay[todayD] : 0;
-  const yAmt = D.isCur ? (todayD>1 ? D.perDay[todayD-1] : 0) : 0;
-  $("todayAmt").textContent = fmt(tAmt);
-  $("todaySub").textContent = D.isCur ? "yesterday "+fmt(yAmt) : "—";
-  $("avgAmt").textContent = fmt(D.avg);
-  $("avgSub").textContent = D.elapsed>0 ? "over "+D.elapsed+" day"+(D.elapsed>1?"s":"") : "—";
-  $("projAmt").textContent = fmt(D.proj);
-  $("projSub").textContent = D.isCur ? "at current pace, by "+MONTHS[D.m].slice(0,3)+" "+D.days : "actual (month closed)";
-  let top=null; for(const k in D.byCat){ if(!top||D.byCat[k]>D.byCat[top]) top=k; }
-  if(top){ const c=catByKey(top);
-    $("topCat").textContent=c.e+" "+c.n;
-    $("topCatSub").textContent=fmt(D.byCat[top])+" · "+Math.round(D.byCat[top]/D.spent*100)+"% of month"; }
-  else { $("topCat").textContent="—"; $("topCatSub").textContent="nothing yet"; }
-
-  if(chartMode==="monthly") renderMonthlyChart(); else renderChart(D);
-  renderLedger(D);
-  renderBudgets(D);
-  renderTxns(D);
-}
-
-/* ---------- chart ---------- */
-function renderChart(D){
-  const W=760,H=250,L=10,R=10,T=20,Bm=28,iw=W-L-R,ih=H-T-Bm;
-  const maxDay=Math.max(...D.perDay,1);
-  const cumMax=Math.max(D.cum[D.days],D.isCur?D.proj:0,1);
-  const xd=d=>L+(d-0.5)*(iw/D.days);
-  const bw=Math.max(3,(iw/D.days)*0.6);
-  let bars="",line="",dots="",labels="",todayMark="";
-  const lastDay = D.isCur? D.elapsed : D.days;
-  for(let d=1;d<=D.days;d++){
-    const v=D.perDay[d];
-    if(v>0){ const h=Math.max(2,v/maxDay*ih);
-      bars+='<rect x="'+(xd(d)-bw/2)+'" y="'+(T+ih-h)+'" width="'+bw+'" height="'+h+'" rx="2.5" fill="url(#bar)"><title>'+
-        MONTHS[D.m].slice(0,3)+" "+d+" — "+fmt(v)+" spent · running "+fmt(D.cum[d])+'</title></rect>'; }
-    if(d%5===0||d===1||d===D.days) labels+='<text x="'+xd(d)+'" y="'+(H-8)+'" text-anchor="middle" class="ax">'+d+'</text>';
-  }
-  const pts=[];
-  for(let d=1;d<=lastDay;d++){ pts.push(xd(d).toFixed(1)+","+(T+ih-D.cum[d]/cumMax*ih).toFixed(1)); }
-  if(pts.length>1) line='<polyline points="'+pts.join(" ")+'" fill="none" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>';
-  if(pts.length){ const last=pts[pts.length-1].split(",");
-    dots='<circle cx="'+last[0]+'" cy="'+last[1]+'" r="4.5" fill="#f472b6" filter="url(#glow)"/>'; }
-  if(D.isCur){ const x=xd(now.getDate());
-    todayMark='<line x1="'+x+'" y1="'+T+'" x2="'+x+'" y2="'+(T+ih)+'" stroke="rgba(236,243,255,.3)" stroke-dasharray="3 4"/>'; }
-  $("dailyChart").innerHTML =
-   '<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Daily spend and running total">'+
-   '<defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">'+
-   '<stop offset="0" stop-color="#b06bff"/><stop offset="1" stop-color="#6d28d9"/></linearGradient>'+
-   '<filter id="glow" x="-50%" y="-50%" width="200%" height="200%">'+
-   '<feGaussianBlur stdDeviation="2.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>'+
-   '<style>.ax{font:600 10px "JetBrains Mono",monospace;fill:rgba(236,243,255,.35)}</style>'+
-   '<line x1="'+L+'" y1="'+(T+ih)+'" x2="'+(W-R)+'" y2="'+(T+ih)+'" stroke="rgba(255,255,255,.12)"/>'+
-   bars+todayMark+line+dots+labels+'</svg>';
-}
-
-/* ---------- monthly analysis: total spend per month (rolling 12, ending at the viewed month) ---------- */
-function renderMonthlyChart(){
-  const byM={}; for(const e of expenses){ const k=e.date.slice(0,7); byM[k]=(byM[k]||0)+e.amount; }
-  const months=[]; let y=view.y, m=view.m;
-  for(let i=0;i<12;i++){ const key=y+"-"+pad(m+1); months.unshift({y,m,key,total:byM[key]||0});
-    m--; if(m<0){m=11;y--;} }
-  const W=760,H=250,L=10,R=10,T=20,Bm=28,iw=W-L-R,ih=H-T-Bm;
-  const maxT=Math.max(...months.map(x=>x.total),1);
-  const slot=iw/months.length, bw=Math.max(8,slot*0.62);
-  const withVals=months.filter(x=>x.total>0); const avg=withVals.length? withVals.reduce((s,x)=>s+x.total,0)/withVals.length : 0;
-  let bars="",labels="",avgLine="";
-  months.forEach((mo,i)=>{
-    const cx=L+slot*(i+0.5), h=Math.max(2,mo.total/maxT*ih);
-    const isView=(mo.y===view.y && mo.m===view.m);
-    bars+='<rect x="'+(cx-bw/2)+'" y="'+(T+ih-h)+'" width="'+bw+'" height="'+h+'" rx="3" fill="url(#bar)" opacity="'+(isView?1:.62)+'" style="cursor:pointer" data-ym="'+mo.y+"-"+mo.m+'"><title>'+
-      MONTHS[mo.m].slice(0,3)+" "+mo.y+" — "+fmt(mo.total)+'</title></rect>';
-    if(isView) bars+='<rect x="'+(cx-bw/2-2)+'" y="'+(T+ih-h-2)+'" width="'+(bw+4)+'" height="'+(h+2)+'" rx="4" fill="none" stroke="#f472b6" stroke-width="1.5" pointer-events="none"/>';
-    labels+='<text x="'+cx+'" y="'+(H-8)+'" text-anchor="middle" class="ax">'+MONTHS[mo.m].slice(0,3)+(mo.m===0?" '"+String(mo.y).slice(2):"")+'</text>';
-  });
-  if(avg>0){ const ay=T+ih-avg/maxT*ih;
-    avgLine='<line x1="'+L+'" y1="'+ay+'" x2="'+(W-R)+'" y2="'+ay+'" stroke="#fcd34d" stroke-width="1.3" stroke-dasharray="4 5" opacity=".7"/>'+
-      '<text x="'+(W-R)+'" y="'+(ay-5)+'" text-anchor="end" class="ax" fill="#fcd34d">avg '+fmt(avg)+'</text>'; }
-  $("dailyChart").innerHTML =
-   '<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Monthly spend">'+
-   '<defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">'+
-   '<stop offset="0" stop-color="#b06bff"/><stop offset="1" stop-color="#6d28d9"/></linearGradient></defs>'+
-   '<style>.ax{font:600 10px "JetBrains Mono",monospace;fill:rgba(236,243,255,.35)}</style>'+
-   '<line x1="'+L+'" y1="'+(T+ih)+'" x2="'+(W-R)+'" y2="'+(T+ih)+'" stroke="rgba(255,255,255,.12)"/>'+
-   bars+avgLine+labels+'</svg>';
-}
-
-/* ---------- day ledger ---------- */
-function renderLedger(D){
-  const lastDay = D.isCur ? D.elapsed : D.days;
-  let html="";
-  const maxDay=Math.max(...D.perDay,1);
-  for(let d=1;d<=lastDay;d++){
-    const dt=new Date(D.y,D.m,d);
-    const wd=dt.toLocaleDateString("en-IN",{weekday:"short"});
-    const isToday = D.isCur && d===now.getDate();
-    const hasSpend=D.perDay[d]>0;
-    html+='<tr'+(isToday?' class="is-today"':'')+(hasSpend?' data-day="'+d+'"':'')+'><td>'+wd+" "+d+(isToday?" · today":"")+
-      '</td><td>'+fmt(D.perDay[d])+'</td><td style="text-align:left;width:90px"><span class="mini" style="width:'+
-      Math.round(D.perDay[d]/maxDay*80)+'px"></span></td><td>'+fmt(D.cum[d])+'</td><td>'+fmt(D.cum[d]/d)+'</td></tr>';
-  }
-  $("dayLedger").innerHTML = html || '<tr><td colspan="5" class="empty">No days yet</td></tr>';
-}
-
-/* ---------- budgets ---------- */
-function renderBudgets(D){
-  const maxSpent=Math.max(...Object.values(D.byCat),1);
-  // build + sort by spend descending (then by budget so set-but-unspent still show)
-  const rows=CATS.map(c=>({c,sp:D.byCat[c.k]||0,b:budgets.cats[c.k]})).filter(r=>r.sp||r.b)
-    .sort((a,b)=>(b.sp-a.sp)||((b.b||0)-(a.b||0)));
-  let html="";
-  for(const {c,sp,b} of rows){
-    let w,cls="";
-    if(b){ const r=sp/b; w=Math.min(100,r*100); cls=r>1?"over":(r>=(D.isCur?D.elapsed/D.days:1)?"warn":""); }
-    else w=sp/maxSpent*100;
-    const pct = D.spent>0 ? Math.round(sp/D.spent*100) : 0;
-    html+='<div class="b-row"><span class="b-emoji">'+c.e+'</span><span class="b-name">'+c.n+
-      '</span><span class="b-pct">'+pct+'%</span><span class="b-bar"><span class="b-fill '+cls+'" style="width:'+w+'%"></span></span>'+
-      '<span class="b-amt"><b>'+fmt(sp)+"</b>"+(b?" / "+fmt(b):"")+'</span></div>';
-  }
-  $("budgetList").innerHTML = html || '<div class="empty">Log expenses or set budgets (⚙) to see this fill up.</div>';
-}
-
-/* ---------- transactions ---------- */
-function renderTxns(D){
-  const list = txnCat ? D.list.filter(e=>e.cat===txnCat) : D.list;
-  if(!list.length){
-    $("txnList").innerHTML='<div class="empty">'+(txnCat? "No "+catByKey(txnCat).n+" expenses in "+MONTHS[D.m]+"." : "Nothing logged in "+MONTHS[D.m]+" yet — add your first expense ↑")+'</div>';
-    return;
-  }
-  const txnRow=e=>{ const c=catByKey(e.cat);
-    return '<div class="txn" data-date="'+e.date+'"><span class="e">'+c.e+'</span><span class="t"><span class="n">'+
-      esc(e.note||c.n)+'</span><span class="c">'+c.n+'</span></span><span class="a">'+fmt(e.amount)+
-      '</span><button class="x" data-del="'+e.id+'" aria-label="Delete">✕</button></div>'; };
-  let html="";
-  if(txnSort==="date-desc" || txnSort==="date-asc"){
-    // grouped by day (enables the ledger ↔ transactions jump-and-glow)
-    const byDate={};
-    for(const e of list){ (byDate[e.date]=byDate[e.date]||[]).push(e); }
-    const dates=Object.keys(byDate).sort(); if(txnSort==="date-desc") dates.reverse();
-    for(const dt of dates){
-      const items=byDate[dt], total=items.reduce((s,e)=>s+e.amount,0);
-      const d=new Date(dt+"T00:00:00");
-      html+='<div class="txn-day" data-date="'+dt+'"><div class="day-h"><span>'+d.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"short"})+
-        '</span><b>'+fmt(total)+'</b></div>'+items.map(txnRow).join("")+'</div>';
+    try {
+      localStorage.setItem("__pp_t", "1");
+      localStorage.removeItem("__pp_t");
+      this.mode = "local";
+    } catch(e) {
+      this.mode = "memory";
     }
-  } else {
-    // flat sorted list — each row shows its date
-    const flat=list.slice();
-    if(txnSort==="amt-desc") flat.sort((a,b)=>b.amount-a.amount);
-    else if(txnSort==="amt-asc") flat.sort((a,b)=>a.amount-b.amount);
-    else if(txnSort==="cat") flat.sort((a,b)=>a.cat<b.cat?-1:a.cat>b.cat?1:b.amount-a.amount);
-    html='<div class="txn-flat">'+flat.map(e=>{ const c=catByKey(e.cat);
-      const dd=new Date(e.date+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short"});
-      return '<div class="txn" data-date="'+e.date+'"><span class="e">'+c.e+'</span><span class="t"><span class="n">'+
-        esc(e.note||c.n)+'</span><span class="c">'+c.n+' · <span class="tdate">'+dd+'</span></span></span><span class="a">'+fmt(e.amount)+
-        '</span><button class="x" data-del="'+e.id+'" aria-label="Delete">✕</button></div>'; }).join("")+'</div>';
   }
-  $("txnList").innerHTML=html;
-}
-const esc = s => String(s).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
 
-/* ================= UI wiring ================= */
-function toast(msg, actLabel, actFn){
-  $("toastMsg").textContent=msg;
-  const b=$("toastAct");
-  if(actLabel){ b.hidden=false; b.textContent=actLabel; b.onclick=()=>{ actFn(); hideToast(); }; }
-  else b.hidden=true;
-  $("toast").classList.add("show");
-  clearTimeout(toastTimer); toastTimer=setTimeout(hideToast,4500);
-}
-const hideToast=()=>$("toast").classList.remove("show");
-
-function renderChips(){
-  $("catChips").innerHTML = CATS.map((c,i)=>'<span class="chip'+(c.k===selCat?" on":"")+'" data-cat="'+c.k+'" role="button" tabindex="0">'+c.e+" "+c.n+(i<9?'<span class="k">'+(i+1)+'</span>':'')+'</span>').join("");
-}
-$("kbdHint").innerHTML = 'Amount does math (<kbd>=20+80</kbd>) · <kbd>Ctrl</kbd>+<kbd>K</kbd> cycles amount → date → category → note (or <kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>9</kbd>) · <kbd>Enter</kbd> adds · <kbd>←</kbd>/<kbd>→</kbd> change month';
-$("catChips").addEventListener("click",e=>{ const t=e.target.closest(".chip"); if(!t)return; selCat=t.dataset.cat; renderChips(); });
-$("catChips").addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ const t=e.target.closest(".chip"); if(t){ e.preventDefault(); selCat=t.dataset.cat; renderChips(); } } });
-
-/* ---------- category quick-find (fuzzy, IntelliSense-style) ---------- */
-const CAT_SYN={dining:"food eating restaurant cafe lunch dinner snack swiggy zomato",commute:"travel transport uber ola auto rapido cab metro bus fuel petrol",
-  groceries:"grocery home blinkit zepto vegetables milk supplies kitchen",subs:"subscription bills netflix spotify prime recharge phone internet wifi membership",
-  ent:"entertainment games movie fun ott steam",care:"personal grooming haircut salon spa gym skincare",health:"medical medicine doctor pharmacy hospital",
-  housing:"rent utilities electricity maintenance gas water",debt:"emi loan credit card repayment",learn:"learning course book education class udemy",
-  gifts:"gift treat donation party celebration",lending:"lent borrow loan friend",assets:"big purchase gadget electronics furniture appliance",
-  invest:"investment trading stocks crypto mutual fund sip savings",misc:"other miscellaneous random"};
-function fuzzyScore(q,c){
-  q=q.toLowerCase(); const hay=(c.n+" "+c.k+" "+(CAT_SYN[c.k]||"")).toLowerCase();
-  if(c.n.toLowerCase().startsWith(q)) return 100;
-  const wi=hay.split(/\s+/).findIndex(w=>w.startsWith(q)); if(wi>-1) return 80-wi;
-  const idx=hay.indexOf(q); if(idx>-1) return 50-Math.min(idx,40);
-  // subsequence
-  let i=0; for(const ch of hay){ if(ch===q[i]) i++; if(i===q.length) break; }
-  return i===q.length?20:-1;
-}
-let csList=[], csActive=0;
-function renderCatSuggest(q){
-  const box=$("catSuggest");
-  if(!q){ box.hidden=true; csList=[]; return; }
-  csList=CATS.map(c=>({c,s:fuzzyScore(q,c)})).filter(x=>x.s>=0).sort((a,b)=>b.s-a.s).slice(0,6).map(x=>x.c);
-  if(!csList.length){ box.innerHTML='<div class="cs-item">no match — pick a chip below</div>'; box.hidden=false; return; }
-  csActive=0;
-  box.innerHTML=csList.map((c,i)=>{ const n=CATS.indexOf(c)+1;
-    return '<div class="cs-item'+(i===0?" active":"")+'" data-cat="'+c.k+'"><span class="cs-e">'+c.e+'</span><span class="cs-n">'+c.n+'</span>'+(n<=9?'<span class="cs-hint">Alt+'+n+'</span>':'')+'</div>'; }).join("");
-  box.hidden=false;
-}
-function pickCat(k){ selCat=k; renderChips(); const s=$("catSearch"); s.value=""; $("catSuggest").hidden=true; csList=[];
-  const c=catByKey(k); toast(c.e+" "+c.n+" selected"); $("amt").focus(); }
-$("catSearch").addEventListener("input",()=>renderCatSuggest($("catSearch").value.trim()));
-$("catSearch").addEventListener("keydown",e=>{
-  if(!csList.length){ if(e.key==="Enter") e.preventDefault(); return; }
-  if(e.key==="ArrowDown"){ e.preventDefault(); csActive=(csActive+1)%csList.length; }
-  else if(e.key==="ArrowUp"){ e.preventDefault(); csActive=(csActive-1+csList.length)%csList.length; }
-  else if(e.key==="Enter"||e.key==="Tab"){ e.preventDefault(); pickCat(csList[csActive].k); return; }
-  else if(e.key==="Escape"){ $("catSearch").value=""; $("catSuggest").hidden=true; csList=[]; return; }
-  else return;
-  document.querySelectorAll("#catSuggest .cs-item").forEach((el,i)=>el.classList.toggle("active",i===csActive));
-});
-$("catSuggest").addEventListener("click",e=>{ const it=e.target.closest("[data-cat]"); if(it) pickCat(it.dataset.cat); });
-$("catSearch").addEventListener("blur",()=>setTimeout(()=>{ $("catSuggest").hidden=true; },150));
-
-/* live calculator preview under the amount field */
-$("amt").addEventListener("input",()=>{
-  const v=$("amt").value.trim(), h=$("calcHint");
-  if(v && (v[0]==="=" || /\d[-+*/]/.test(v.replace(/^-/,"")))){
-    const r=evalAmount(v);
-    if(r!=null && r>0){ h.hidden=false; h.dataset.val=r; h.innerHTML='= <b>'+fmt(r)+'</b> &nbsp;· tap or press Enter'; }
-    else { h.hidden=false; delete h.dataset.val; h.textContent='…keep typing a calculation'; }
-  } else h.hidden=true;
-});
-$("calcHint").addEventListener("click",()=>{ const h=$("calcHint"); if(h.dataset.val){ $("amt").value=h.dataset.val; h.hidden=true; $("amt").focus(); } });
-
-/* keyboard shortcuts: Alt+1..9 pick category (even while typing); ←/→ change month when not in a field */
-const isTyping = el => el && (el.tagName==="INPUT"||el.tagName==="TEXTAREA"||el.tagName==="SELECT");
-document.addEventListener("keydown",e=>{
-  if(!$("onboard").hidden) return;                 // don't hijack during onboarding
-  if((e.ctrlKey||e.metaKey) && (e.key==="k"||e.key==="K")){   // Ctrl/Cmd+K cycles: amount → date → category search
-    e.preventDefault();
-    const ck=["amt","date","catSearch","note"], cur=ck.indexOf(document.activeElement.id);
-    const el=$(ck[(cur+1)%ck.length]); el.scrollIntoView({block:"center"}); el.focus();
-    if(el.type!=="date" && el.select) try{ el.select(); }catch(_){}
-    return;
-  }
-  if(e.altKey && !e.ctrlKey && !e.metaKey && e.key>="1" && e.key<="9"){
-    const idx=+e.key-1; if(idx<CATS.length){ e.preventDefault(); selCat=CATS[idx].k; renderChips();
-      const a=$("amt"); if(document.activeElement!==a && !isTyping(document.activeElement)) a.focus(); } return;
-  }
-  if(!isTyping(document.activeElement) && !document.querySelector("dialog[open]")){
-    if(e.key==="ArrowLeft"){ $("prevM").click(); }
-    else if(e.key==="ArrowRight"){ if(!$("nextM").disabled) $("nextM").click(); }
-  }
-});
-
-function addExpense(){
-  const a=parseAmount($("amt").value);
-  if(!a||a<=0){ toast("Enter an amount first"); $("amt").focus(); return; }
-  const d=$("date").value||todayISO();
-  const exp={id:uid(),date:d,amount:a,cat:selCat,note:$("note").value.trim(),createdAt:new Date().toISOString()};
-  expenses.push(exp); sortExp(); persist();
-  const parts=d.split("-"); view={y:+parts[0],m:+parts[1]-1};
-  $("amt").value=""; $("note").value="";
-  render(); toast("Added "+fmt(a)+(cloudUrl?" · saving…":" ✓")); $("amt").focus();
-  cloudSync({op:"add",expense:exp});
-}
-$("btnAdd").addEventListener("click",addExpense);
-$("note").addEventListener("keydown",e=>{ if(e.key==="Enter") addExpense(); });
-$("amt").addEventListener("keydown",e=>{ if(e.key==="Enter") addExpense(); });   // Tab navigates naturally → date → category search
-$("amt").addEventListener("blur",()=>{                                          // leaving the box resolves a pending calculation
-  const v=$("amt").value.trim();
-  if(v && (v[0]==="=" || /\d[-+*/]/.test(v.replace(/^-/,"")))){ const r=evalAmount(v); if(r!=null && r>0){ $("amt").value=r; } }
-  $("calcHint").hidden=true;
-});
-
-function deleteTxn(id){
-  const i=expenses.findIndex(x=>x.id===id); if(i<0)return;
-  lastDeleted=expenses.splice(i,1)[0]; persist(); render();
-  cloudSync({op:"delete",id:lastDeleted.id});
-  toast("Deleted "+fmt(lastDeleted.amount),"Undo",()=>{
-    expenses.push(lastDeleted); sortExp(); persist(); render();
-    cloudSync({op:"add",expense:lastDeleted});
-  });
-}
-$("txnList").addEventListener("click",e=>{
-  const b=e.target.closest("[data-del]"); if(!b)return;
-  const id=b.dataset.del;
-  if(meta.confirmDelete===false){ deleteTxn(id); return; }   // toggle off → instant (Undo still available)
-  if(b.dataset.armed){ deleteTxn(id); return; }              // second click confirms
-  b.dataset.armed="1"; b.classList.add("confirm"); b.textContent="Delete?";
-  setTimeout(()=>{ if(b.isConnected){ delete b.dataset.armed; b.classList.remove("confirm"); b.textContent="✕"; } },3000);
-});
-/* confirm-before-delete toggle (top of Transactions) */
-$("confirmDel").checked = meta.confirmDelete!==false;
-$("confirmDel").addEventListener("change",()=>{ meta.confirmDelete=$("confirmDel").checked; persist(); });
-
-$("prevM").addEventListener("click",()=>{ view.m--; if(view.m<0){view.m=11;view.y--;} render(); });
-$("nextM").addEventListener("click",()=>{ view.m++; if(view.m>11){view.m=0;view.y++;} render(); });
-
-/* ---------- month picker (calendar) ---------- */
-let mpYearShown=view.y;
-function openMonthPicker(){ mpYearShown=view.y; renderMonthPicker(); $("monthPicker").hidden=false; }
-function closeMonthPicker(){ $("monthPicker").hidden=true; }
-function renderMonthPicker(){
-  $("mpYear").textContent=mpYearShown;
-  const maxY=now.getFullYear();
-  $("mpNextY").disabled = mpYearShown>=maxY;
-  $("mpGrid").innerHTML = MONTHS.map((m,i)=>{
-    const future = mpYearShown>now.getFullYear() || (mpYearShown===now.getFullYear() && i>now.getMonth());
-    const cur = (i===view.m && mpYearShown===view.y);
-    return '<button data-m="'+i+'"'+(cur?' class="cur"':'')+(future?' disabled':'')+'>'+m.slice(0,3)+'</button>';
-  }).join("");
-}
-$("monthLabel").addEventListener("click",e=>{ e.stopPropagation(); $("monthPicker").hidden?openMonthPicker():closeMonthPicker(); });
-$("mpPrevY").addEventListener("click",()=>{ mpYearShown--; renderMonthPicker(); });
-$("mpNextY").addEventListener("click",()=>{ if(mpYearShown<now.getFullYear()){ mpYearShown++; renderMonthPicker(); } });
-$("mpToday").addEventListener("click",()=>{ view={y:now.getFullYear(),m:now.getMonth()}; closeMonthPicker(); render(); });
-$("mpGrid").addEventListener("click",e=>{ const b=e.target.closest("[data-m]"); if(!b||b.disabled)return;
-  view={y:mpYearShown,m:+b.dataset.m}; closeMonthPicker(); render(); });
-document.addEventListener("click",e=>{ if(!$("monthPicker").hidden && !e.target.closest(".month-nav")) closeMonthPicker(); });
-
-/* ---------- transactions: category filter ---------- */
-function fillTxnFilter(){
-  $("txnFilter").innerHTML='<option value="">All categories</option>'+
-    CATS.map(c=>'<option value="'+c.k+'">'+c.e+" "+c.n+'</option>').join("");
-}
-$("txnFilter").addEventListener("change",()=>{ txnCat=$("txnFilter").value; render(); });
-$("txnSort").addEventListener("change",()=>{ txnSort=$("txnSort").value; render(); });
-
-/* ---------- chart: Daily / Monthly toggle ---------- */
-$("chartToggle").addEventListener("click",e=>{ const b=e.target.closest("[data-mode]"); if(!b)return;
-  chartMode=b.dataset.mode;
-  document.querySelectorAll("#chartToggle .seg-btn").forEach(x=>x.classList.toggle("on",x===b));
-  $("chartTitle").innerHTML = chartMode==="monthly" ? "Monthly spend (last 12 months)" : "Daily spend &amp; running total";
-  $("chartLegend").style.display = chartMode==="monthly" ? "none" : "";
-  render();
-});
-/* click a month bar → drill into that month (back to daily view) */
-$("dailyChart").addEventListener("click",e=>{
-  const r=e.target.closest("[data-ym]"); if(!r)return;
-  const [yy,mm]=r.dataset.ym.split("-").map(Number); view={y:yy,m:mm};
-  chartMode="daily"; document.querySelectorAll("#chartToggle .seg-btn").forEach(x=>x.classList.toggle("on",x.dataset.mode==="daily"));
-  $("chartTitle").innerHTML="Daily spend &amp; running total"; $("chartLegend").style.display=""; render();
-});
-
-/* ---------- ledger ↔ transactions cross-highlight ---------- */
-function glowLedgerDay(d){
-  const tr=$("dayLedger").querySelector('tr[data-day="'+d+'"]');
-  if(tr){ tr.scrollIntoView({behavior:"smooth",block:"center"}); tr.classList.add("glow");
-    setTimeout(()=>tr.classList.remove("glow"),1900); }
-}
-function glowTxnDay(iso){
-  const el=document.querySelector('.txn-day[data-date="'+iso+'"]');
-  if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.add("glow");
-    setTimeout(()=>el.classList.remove("glow"),1900); }
-}
-/* click a ledger day → jump down to that day's transactions */
-$("dayLedger").addEventListener("click",e=>{
-  const tr=e.target.closest("tr[data-day]"); if(!tr)return;
-  const d=+tr.dataset.day, iso=view.y+"-"+pad(view.m+1)+"-"+pad(d);
-  let needRender=false;
-  if(txnCat){ txnCat=""; $("txnFilter").value=""; needRender=true; }
-  if(txnSort!=="date-desc" && txnSort!=="date-asc"){ txnSort="date-desc"; $("txnSort").value="date-desc"; needRender=true; }  // need day groups
-  if(needRender) render();
-  glowTxnDay(iso);
-});
-/* click a transaction → jump up to its day in the ledger */
-$("txnList").addEventListener("click",e=>{
-  if(e.target.closest("[data-del]")) return;        // delete button handled separately
-  const t=e.target.closest(".txn[data-date]"); if(!t)return;
-  glowLedgerDay(+t.dataset.date.slice(8,10));
-});
-
-/* ---------- modals ---------- */
-document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",()=>b.closest("dialog").close()));
-$("btnData").addEventListener("click",()=>$("dataModal").showModal());
-$("btnSettings").addEventListener("click",()=>{ fillSettings(); $("settingsModal").showModal(); });
-document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
-  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===t));
-  $("tab-import").hidden = t.dataset.tab!=="import";
-  $("tab-export").hidden = t.dataset.tab!=="export";
-}));
-
-/* import */
-$("csvFile").addEventListener("change",e=>{
-  const f=e.target.files[0]; if(!f)return;
-  const r=new FileReader();
-  r.onload=()=>{ finishImport(importCSV(String(r.result))); e.target.value=""; };
-  r.readAsText(f);
-});
-$("btnImport").addEventListener("click",()=>{
-  const t=$("csvPaste").value.trim();
-  if(!t){ toast("Choose a CSV file or paste CSV text"); return; }
-  finishImport(importCSV(t)); $("csvPaste").value="";
-});
-function finishImport(res){
-  render();
-  if(res.rows && res.rows.length) cloudSync({op:"import",expenses:res.rows});
-  toast("Imported "+res.added+" · skipped "+res.skipped+" duplicate"+(res.skipped===1?"":"s")+(res.bad?" · "+res.bad+" unreadable":"")+(cloudUrl&&res.added?" · saving to Drive…":""));
-  if(res.added) $("dataModal").close();
-}
-
-/* export */
-function csvOut(){
-  let s="Date,Category,Description,Amount\n";
-  for(const e of expenses){ const c=catByKey(e.cat);
-    s+=e.date+',"'+c.n+'","'+String(e.note||"").replace(/"/g,'""')+'",'+e.amount+"\n"; }
-  return s;
-}
-function download(name,text,type){
-  try{
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(new Blob([text],{type}));
-    a.download=name; document.body.appendChild(a); a.click();
-    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);
-  }catch(err){ console.error(err); }
-}
-$("btnBackup").addEventListener("click",()=>{
-  const j=JSON.stringify({app:"PaisaPulse",v:1,exported:new Date().toISOString(),expenses,budgets},null,1);
-  $("exportBox").value=j; download("paisapulse-backup-"+todayISO()+".json",j,"application/json");
-  toast("Backup ready — keep it in Drive too");
-});
-$("btnCsvOut").addEventListener("click",()=>{
-  const c=csvOut(); $("exportBox").value=c; download("paisapulse-expenses-"+todayISO()+".csv",c,"text/csv");
-  toast("CSV ready");
-});
-$("btnCopyExport").addEventListener("click",async()=>{
-  const t=$("exportBox").value; if(!t){toast("Generate an export first");return;}
-  try{ await navigator.clipboard.writeText(t); toast("Copied ✓"); }
-  catch(e){ $("exportBox").select(); toast("Press Ctrl+C to copy"); }
-});
-
-/* ---------- onboarding / cloud connection ---------- */
-function openOnboard(){
-  $("cloudUrlInput").value=cloudUrl||"";
-  const v=$("obVerify"); v.textContent=""; v.className="ob-verify";
-  $("obChoose").hidden=false; $("obFlow").hidden=true;   // always start at the New / Existing chooser
-  $("onboard").hidden=false;
-}
-function closeOnboard(){ $("onboard").hidden=true; }
-function chooseMode(mode){
-  const existing = mode==="existing";
-  $("obChoose").hidden=true; $("obFlow").hidden=false;
-  $("obStep1").hidden=existing; $("obStep2").hidden=existing;
-  $("obStep3Num").textContent = existing ? "1" : "3";
-  $("obStep3Title").textContent = existing ? "Link your existing Sheet" : "Paste your URL";
-  $("obStep3Desc").innerHTML = existing
-    ? "Open your existing PaisaPulse Sheet → <code>Extensions → Apps Script → Deploy → Manage deployments</code> to copy its Web app URL (or paste the one you saved). Connecting <b>pulls all the data from that Sheet</b> onto this device — the Sheet itself isn't changed."
-    : "Paste the Web app URL below and connect — I'll verify it can talk to your Sheet before saving anything.";
-  const v=$("obVerify"); v.textContent=""; v.className="ob-verify";
-}
-$("obPickNew").addEventListener("click",()=>chooseMode("new"));
-$("obPickExisting").addEventListener("click",()=>chooseMode("existing"));
-$("obBack").addEventListener("click",()=>{ $("obFlow").hidden=true; $("obChoose").hidden=false; });
-$("obNewSheet").addEventListener("click",()=>window.open("https://sheets.new","_blank","noopener"));
-$("obShowHow").addEventListener("click",()=>{ const h=$("obHowto"); h.hidden=!h.hidden; $("obShowHow").textContent=h.hidden?"Show deploy steps":"Hide steps"; });
-$("scriptCode").value = ($("ppScriptSrc").textContent||"").replace(/^\s+/,"");
-$("obCopyScript").addEventListener("click",async()=>{
-  const code=$("scriptCode").value;
-  try{ await navigator.clipboard.writeText(code); toast("Script copied — paste it into Apps Script ✓"); }
-  catch(e){ $("scriptCode").focus(); $("scriptCode").select(); toast("Press Ctrl+C to copy the script"); }
-});
-$("obConnect").addEventListener("click",connectCloud);
-$("cloudUrlInput").addEventListener("keydown",e=>{ if(e.key==="Enter") connectCloud(); });
-$("obSkip").addEventListener("click",()=>{ meta.onboardSkipped=true; persist(); closeOnboard(); updateConnUI(); });
-$("btnChangeConn").addEventListener("click",()=>{
-  // Unlink is non-destructive: it clears ONLY the saved URL pointer on this device.
-  // The Google Sheet and every row in it stay in your Drive, and the local copy stays too.
-  const was=!!cloudUrl;
-  cloudUrl=null; try{ localStorage.removeItem(KEY_URL); }catch(e){}
-  $("dataModal").close(); updateConnUI();
-  if(was) toast("Disconnected — your Sheet & all its data are safe in Drive");
-  openOnboard();
-});
-
-async function connectCloud(){
-  const url=$("cloudUrlInput").value.trim(), v=$("obVerify");
-  if(!URL_RE.test(url)){ v.className="ob-verify err"; v.textContent="That doesn't look like a Web app URL — it should end in /exec, like https://script.google.com/macros/s/…/exec"; return; }
-  v.className="ob-verify busy"; v.textContent="Checking the connection to your Sheet…";
-  if(!(await cloudPing(url))){ v.className="ob-verify err"; v.textContent="Couldn't reach it. Make sure you deployed as a Web app with access = Anyone, and pasted the /exec URL."; return; }
-  cloudUrl=url; try{ localStorage.setItem(KEY_URL,url); }catch(e){}
-  v.className="ob-verify ok"; v.textContent="✓ Connected! Syncing your Sheet…";
-  await firstSync();
-  dismissSeedBanner();
-  closeOnboard(); updateConnUI(); toast("Google Drive connected ✓");
-}
-/* first connection: an existing Sheet with data wins; an empty Sheet gets seeded with local data.
-   Seeding uses a dedupe'd APPEND (never a destructive replace) so connecting can never wipe a Sheet. */
-async function firstSync(){
-  setSync("loading");
-  try{
-    const j=await cloudCall(null);
-    const rows=Array.isArray(j)?j:(j.expenses||[]);
-    if(rows.length){ applyCloudData(j); }          // Sheet has data → pull it, leave the Sheet untouched
-    else if(expenses.length){                       // Sheet looks empty → push this device's data up (append, deduped)
-      cloudSync({op:"import",expenses});
-      if(budgets.overall||Object.keys(budgets.cats).length) cloudSync({op:"budgets",budgets});
+  async get(k) {
+    if (this.mode === "claude") {
+      try { const r = await window.storage.get(k); return r && r.value != null ? r.value : null; } catch(e) { return null; }
     }
-    render(); setSync(outbox.length?"saving":"saved");
-  }catch(e){ console.error("first sync failed",e); setSync("error"); }
+    if (this.mode === "local") {
+      try { return localStorage.getItem(k); } catch(e) { return null; }
+    }
+    return Object.prototype.hasOwnProperty.call(this.mem, k) ? this.mem[k] : null;
+  }
+
+  async set(k, v) {
+    if (this.mode === "claude") {
+      try { await window.storage.set(k, v); } catch(e) { console.error(e); } return;
+    }
+    if (this.mode === "local") {
+      try { localStorage.setItem(k, v); } catch(e) { console.error(e); } return;
+    }
+    this.mem[k] = v;
+  }
 }
 
-/* restore + wipe: arm-to-confirm */
-function armButton(btn,label,fn){
-  btn.addEventListener("click",()=>{
-    if(btn.dataset.armed){ delete btn.dataset.armed; btn.textContent=label; fn(); }
-    else{ btn.dataset.armed="1"; btn.textContent="Sure? Click again to confirm";
-      setTimeout(()=>{ delete btn.dataset.armed; btn.textContent=label; },3500); }
-  });
-}
-armButton($("btnRestore"),"Restore from pasted JSON (replaces everything)",()=>{
-  try{
-    const j=JSON.parse($("exportBox").value);
-    if(!Array.isArray(j.expenses)) throw new Error("no expenses array");
-    expenses=j.expenses.filter(e=>e&&e.date&&e.amount>0).map(e=>({id:e.id||uid(),date:e.date,amount:+e.amount,cat:e.cat||"misc",note:e.note||""}));
-    budgets=j.budgets&&typeof j.budgets==="object"?{overall:j.budgets.overall||null,cats:j.budgets.cats||{}}:budgets;
-    sortExp(); persist(); render(); $("dataModal").close();
-    if(cloudUrl){ cloudSync({op:"replace",expenses}); cloudSync({op:"budgets",budgets}); }
-    toast("Restored "+expenses.length+" expenses ✓");
-  }catch(e){ toast("That doesn't look like a PaisaPulse backup"); }
-});
-/* SAFE reset: clears ONLY this device's local copy. Never touches the Google Sheet (the real DB). */
-$("wipeConfirm").addEventListener("input",()=>{ $("btnWipe").disabled = $("wipeConfirm").value.trim().toUpperCase()!=="RESET"; });
-$("btnWipe").addEventListener("click",()=>{
-  if($("wipeConfirm").value.trim().toUpperCase()!=="RESET") return;
-  expenses=[]; budgets={overall:null,cats:{}};
-  Store.set(KEY_EXP,JSON.stringify(expenses)); Store.set(KEY_BUD,JSON.stringify(budgets));
-  $("wipeConfirm").value=""; $("btnWipe").disabled=true;
-  render(); $("settingsModal").close();
-  toast(cloudUrl ? "Local copy cleared — reload to pull your Sheet back" : "Local copy cleared");
-});
+const Store = new StorageAdapter();
 
-/* settings */
-function fillSettings(){
-  $("bOverall").value=budgets.overall||"";
-  $("bCats").innerHTML=CATS.map(c=>'<div class="set-row"><label>'+c.e+" "+c.n+'</label><input data-bcat="'+c.k+'" inputmode="numeric" placeholder="—" value="'+(budgets.cats[c.k]||"")+'"></div>').join("");
-}
-$("btnSaveBudgets").addEventListener("click",()=>{
-  const o=parseAmount($("bOverall").value); budgets.overall=o&&o>0?o:null;
-  document.querySelectorAll("[data-bcat]").forEach(inp=>{
-    const v=parseAmount(inp.value);
-    if(v&&v>0) budgets.cats[inp.dataset.bcat]=v; else delete budgets.cats[inp.dataset.bcat];
-  });
-  persist(); render(); $("settingsModal").close();
-  cloudSync({op:"budgets",budgets}); toast("Budgets saved"+(cloudUrl?" · saving…":" ✓"));
-});
-function dismissSeedBanner(){ meta.seedDismissed=true; $("seedBanner").hidden=true; Store.set(KEY_META, JSON.stringify(meta)); }
-$("seedDismiss").addEventListener("click",dismissSeedBanner);
 
-/* ---------- greeting (manual name, no Google API needed) ---------- */
-const GREET={
-  morning:["Good morning","Morning","Rise & shine","Bright and early","Top of the morning"],
-  afternoon:["Good afternoon","Afternoon","Hey there","Hope your day's going well"],
-  evening:["Good evening","Evening","Winding down","Hey"],
-  night:["Still up","Late one","Burning the midnight oil","Night owl mode"]
+/* ── calculator.js ── */
+/* ── calculator.js — safe expression evaluator, amount/date/CSV parsers ── */
+
+class Calculator {
+
+  /* Safe eval: "=20+80", "20*3", "(100-15)/2". Whitelist-only — no arbitrary code. */
+  static evalAmount(s) {
+    let str = String(s || "").replace(/[₹,\s]/g, "");
+    if (str[0] === "=") str = str.slice(1);
+    if (!str || !/\d/.test(str) || !/^[-+*/().\d]+$/.test(str)) return null;
+    try {
+      const v = Function('"use strict";return (' + str + ')')();
+      return (typeof v === "number" && isFinite(v)) ? v : null;
+    } catch(e) { return null; }
+  }
+
+  static parseAmount(s) {
+    if (typeof s === "number") return s;
+    const str = String(s || "").trim();
+    if (str[0] === "=" || /[-+*/()]/.test(str.replace(/^-/, ""))) {
+      const r = Calculator.evalAmount(str);
+      if (r != null) return r;
+    }
+    const n = parseFloat(str.replace(/[₹,\s]/g, ""));
+    return isNaN(n) ? null : n;
+  }
+
+  static parseDate(s) {
+    if (!s) return null;
+    s = String(s).trim();
+    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);                          // 2026-06-02
+    if (m) return m[1] + "-" + pad(+m[2]) + "-" + pad(+m[3]);
+    m = s.match(/^(\d{1,2})[-\/\s]([A-Za-z]{3,})[-\/\s,]+(\d{2,4})$/);        // 2-Jun-2026
+    if (m) { const mo = MABBR[m[2].slice(0,3).toLowerCase()]; if (mo == null) return null;
+      let y = +m[3]; if (y < 100) y += 2000; return y + "-" + pad(mo+1) + "-" + pad(+m[1]); }
+    m = s.match(/^([A-Za-z]{3,})[-\s]+(\d{1,2})[,\s]+(\d{2,4})$/);            // Jun 2, 2026
+    if (m) { const mo = MABBR[m[1].slice(0,3).toLowerCase()]; if (mo == null) return null;
+      let y = +m[3]; if (y < 100) y += 2000; return y + "-" + pad(mo+1) + "-" + pad(+m[2]); }
+    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);                 // 02/06/2026 → DD/MM
+    if (m) { let y = +m[3]; if (y < 100) y += 2000; return y + "-" + pad(+m[2]) + "-" + pad(+m[1]); }
+    return null;
+  }
+
+  /* Keyword-based category guesser used when importing CSV without explicit category column */
+  static matchCat(s) {
+    const t = String(s || "").toLowerCase();
+    if (!t) return "misc";
+    for (const c of CATS) { if (t.includes(c.n.toLowerCase())) return c.k; }
+    const words = {
+      dining:"dining",snack:"dining",restaurant:"dining",cafe:"dining",
+      grocer:"groceries",food:"groceries",household:"groceries",essential:"groceries",
+      commute:"commute",travel:"commute",transport:"commute",uber:"commute",rapido:"commute",auto:"commute",
+      subscription:"subs",subs:"subs",bill:"subs",recharge:"subs",
+      entertainment:"ent",game:"ent",movie:"ent",lifestyle:"ent",
+      "personal care":"care",grooming:"care",haircut:"care",salon:"care",
+      health:"health",medical:"health",medicine:"health",pharma:"health",
+      housing:"housing",rent:"housing",utilit:"housing",electric:"housing",
+      debt:"debt",emi:"debt",loan:"debt",
+      learn:"learn",course:"learn",book:"learn",education:"learn",
+      gift:"gifts",treat:"gifts",social:"gifts",
+      lend:"lending",lent:"lending",
+      asset:"assets",purchase:"assets",gadget:"assets",
+      invest:"invest",trading:"invest",crypto:"invest",saving:"invest"
+    };
+    for (const w in words) { if (t.includes(w)) return words[w]; }
+    return "misc";
+  }
+
+  static parseCSV(text) {
+    const rows = []; let row = [], cell = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) { if (ch === '"') { if (text[i+1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+      else if (ch === '"') q = true;
+      else if (ch === ',') { row.push(cell); cell = ""; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && text[i+1] === '\n') i++;
+        row.push(cell); cell = "";
+        if (row.some(x => x.trim() !== "")) rows.push(row);
+        row = [];
+      } else cell += ch;
+    }
+    row.push(cell);
+    if (row.some(x => x.trim() !== "")) rows.push(row);
+    return rows;
+  }
+
+  /* Returns {added, skipped, bad, rows: newExpenses[]} — pure, does NOT mutate existing */
+  static importCSV(text, existing) {
+    const rows = Calculator.parseCSV(text);
+    if (!rows.length) return {added:0, skipped:0, bad:0, rows:[]};
+
+    let hIdx = -1, map = null;
+    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+      const low = rows[i].map(c => c.trim().toLowerCase());
+      const di = low.findIndex(c => c.includes("date"));
+      const ai = low.findIndex(c => c === "amount" || c.includes("amount") || c === "amt" || c.includes("cost") || c.includes("price"));
+      if (di > -1 && ai > -1) {
+        hIdx = i;
+        map = { date:di, amount:ai,
+          cat:  low.findIndex(c => c.includes("categ")),
+          note: low.findIndex(c => c.includes("desc") || c.includes("note") || c.includes("item") || c.includes("detail")) };
+        break;
+      }
+    }
+
+    let added = 0, skipped = 0, bad = 0;
+    const newRows = [];
+    const seen = new Set(existing.map(e => e.date + "|" + e.amount + "|" + e.cat + "|" + (e.note || "")));
+    const body = hIdx > -1 ? rows.slice(hIdx + 1) : rows;
+
+    for (const r of body) {
+      let d, a, c, n;
+      if (map) {
+        d = Calculator.parseDate(r[map.date]);
+        a = Calculator.parseAmount(r[map.amount]);
+        c = Calculator.matchCat(map.cat > -1 ? r[map.cat] : "");
+        n = (map.note > -1 ? r[map.note] : "") || "";
+      } else {
+        d = Calculator.parseDate(r[0]);
+        if (r.length >= 4) { c = Calculator.matchCat(r[1]); n = r[2] || ""; a = Calculator.parseAmount(r[3]); }
+        else { c = "misc"; n = r[1] || ""; a = Calculator.parseAmount(r[2]); }
+      }
+      if (!d || a == null || a <= 0) { bad++; continue; }
+      n = String(n).trim();
+      const sig = d + "|" + a + "|" + c + "|" + n;
+      if (seen.has(sig)) { skipped++; continue; }
+      seen.add(sig);
+      newRows.push({id:uid(), date:d, amount:a, cat:c, note:n, createdAt:new Date().toISOString()});
+      added++;
+    }
+    return {added, skipped, bad, rows: newRows};
+  }
+}
+
+
+/* ── cloud.js ── */
+/* ── cloud.js — Google Apps Script sync: outbox, flush, connect, first-sync ── */
+
+/* Row conversion: expenses use short category keys; the Sheet stores human-readable names */
+const catKeyFromName = n => {
+  const t = String(n || "").trim().toLowerCase();
+  const hit = CATS.find(c => c.n.toLowerCase() === t);
+  return hit ? hit.k : Calculator.matchCat(n);
 };
-const TAGLINES=[
+const catNameFromKey = k => catByKey(k).n;
+const expToRow = e => ({ id:e.id, date:e.date, cat:catNameFromKey(e.cat), note:e.note||"", amount:e.amount, createdAt:e.createdAt||new Date().toISOString() });
+const rowToExp = r => ({ id:r.id||uid(), date:Calculator.parseDate(r.date)||String(r.date||""), amount:+r.amount||0, cat:catKeyFromName(r.cat), note:r.note||"", createdAt:r.createdAt||"" });
+
+class CloudSync {
+  constructor(app) {
+    this.app      = app;
+    this.flushing = false;
+    this.retryT   = null;
+  }
+
+  /* ── network ── */
+
+  async call(body) {
+    const url  = this.app.cloudUrl;
+    const init = body
+      ? { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify(body), redirect:"follow" }
+      : { method:"GET",  redirect:"follow" };
+    const r = await fetch(url, init);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    let j;
+    try { j = JSON.parse(await r.text()); } catch(e) { throw new Error("bad response from script"); }
+    if (j && j.ok === false) throw new Error(j.error || "script error");
+    return j;
+  }
+
+  async ping(url) {
+    try {
+      const r = await fetch(url, {method:"GET", redirect:"follow"});
+      if (!r.ok) return false;
+      const j = JSON.parse(await r.text());
+      return !!(j && (j.ok || Array.isArray(j.expenses)));
+    } catch(e) { return false; }
+  }
+
+  /* ── data apply ── */
+
+  applyData(j) {
+    const rows = Array.isArray(j) ? j : (j.expenses || []);
+    this.app.expenses = rows.map(rowToExp).filter(e => e.date && e.amount > 0);
+    if (j.budgets && typeof j.budgets === "object")
+      this.app.budgets = {overall: j.budgets.overall||null, cats: j.budgets.cats||{}};
+    this.app.sortExp();
+    Store.set(KEY_EXP, JSON.stringify(this.app.expenses));
+    Store.set(KEY_BUD, JSON.stringify(this.app.budgets));
+  }
+
+  async loadFromCloud() {
+    this.setSync("loading");
+    try { this.applyData(await this.call(null)); this.setSync("saved"); return true; }
+    catch(e) { console.error("cloud load failed", e); this.setSync("error"); return false; }
+  }
+
+  /* ── outbox: queued writes survive reloads, replayed until the Sheet confirms ── */
+
+  loadOutbox() {
+    try { this.app.outbox = JSON.parse(localStorage.getItem(KEY_OUT)) || []; } catch(e) { this.app.outbox = []; }
+  }
+
+  saveOutbox() {
+    try { localStorage.setItem(KEY_OUT, JSON.stringify(this.app.outbox)); } catch(e) {}
+  }
+
+  opBody(op) {
+    if (op.op === "add")     return {action:"add",     expense: expToRow(op.expense)};
+    if (op.op === "delete")  return {action:"delete",  id: op.id};
+    if (op.op === "budgets") return {action:"budgets",  budgets: op.budgets};
+    if (op.op === "import")  return {action:"import",  expenses: op.expenses.map(expToRow)};
+    if (op.op === "replace") return {action:"import",  replace:true, expenses: op.expenses.map(expToRow)};
+  }
+
+  async flushOutbox() {
+    const out = this.app.outbox;
+    if (this.flushing || !this.app.cloudUrl || !out.length) return;
+    this.flushing = true; this.setSync("saving");
+    try {
+      while (out.length) { await this.call(this.opBody(out[0])); out.shift(); this.saveOutbox(); }
+      this.setSync("saved"); this.flushing = false;
+    } catch(e) {
+      console.error("sync failed", e); this.flushing = false; this.setSync("error");
+      if (!this.retryT) this.retryT = setTimeout(() => { this.retryT = null; this.flushOutbox(); }, 5000);
+    }
+  }
+
+  /* Push an operation; caller has already updated local state */
+  sync(op) {
+    if (!this.app.cloudUrl) return;
+    this.app.outbox.push(op); this.saveOutbox(); this.flushOutbox();
+  }
+
+  /* ── status badge ── */
+
+  setSync(state) {
+    const badge = $("saveBadge"), bt = $("saveBadgeTxt");
+    if (!badge) return;
+    badge.className = "badge";
+    if (!this.app.cloudUrl) {
+      bt.textContent = Store.mode === "local" ? "Saved on this device" : "Saved this session"; return;
+    }
+    if (state === "loading") { badge.classList.add("saving"); bt.textContent = "Loading…"; }
+    else if (state === "saving") { badge.classList.add("saving"); bt.textContent = "Saving…"; }
+    else if (state === "error") { badge.classList.add("err"); bt.textContent = "Couldn't reach Drive — retrying"; }
+    else { badge.classList.add("synced"); bt.textContent = "Saved to Drive ✓"; }
+  }
+
+  updateConnUI() {
+    const dot = $("connDot"), txt = $("connTxt"), btn = $("btnChangeConn");
+    if (dot) dot.className = "conn-dot" + (this.app.cloudUrl ? "" : " off");
+    if (txt) txt.textContent = this.app.cloudUrl ? "Connected to your Google Sheet" : "Not connected — data is on this device only";
+    if (btn) btn.textContent = this.app.cloudUrl ? "Change / disconnect Drive" : "Connect Google Drive";
+    this.setSync("saved");
+  }
+
+  /* ── first connection: pull if Sheet has data, push if Sheet is empty ── */
+
+  async firstSync() {
+    this.setSync("loading");
+    try {
+      const j    = await this.call(null);
+      const rows = Array.isArray(j) ? j : (j.expenses || []);
+      if (rows.length) {
+        this.applyData(j);                            // Sheet has data → pull, leave Sheet untouched
+      } else if (this.app.expenses.length) {          // Sheet empty → push local data up (append, deduped)
+        this.sync({op:"import", expenses: this.app.expenses});
+        if (this.app.budgets.overall || Object.keys(this.app.budgets.cats).length)
+          this.sync({op:"budgets", budgets: this.app.budgets});
+      }
+      this.app.render(); this.setSync(this.app.outbox.length ? "saving" : "saved");
+    } catch(e) { console.error("first sync failed", e); this.setSync("error"); }
+  }
+
+  /* ── event wiring ── */
+
+  wire() {
+    $("btnChangeConn").addEventListener("click", () => {
+      const was = !!this.app.cloudUrl;
+      this.app.cloudUrl = null;
+      try { localStorage.removeItem(KEY_URL); } catch(e) {}
+      $("dataModal").close();
+      this.updateConnUI();
+      if (was) this.app.ui.toast("Disconnected — your Sheet & all its data are safe in Drive");
+      this.app.ui.openOnboard();
+    });
+  }
+}
+
+
+/* ── search.js ── */
+/* ── search.js — fuzzy IntelliSense category search ── */
+
+const CAT_SYN = {
+  dining:    "food eating restaurant cafe lunch dinner snack swiggy zomato",
+  commute:   "travel transport uber ola auto rapido cab metro bus fuel petrol",
+  groceries: "grocery home blinkit zepto vegetables milk supplies kitchen",
+  subs:      "subscription bills netflix spotify prime recharge phone internet wifi membership",
+  ent:       "entertainment games movie fun ott steam",
+  care:      "personal grooming haircut salon spa gym skincare",
+  health:    "medical medicine doctor pharmacy hospital",
+  housing:   "rent utilities electricity maintenance gas water",
+  debt:      "emi loan credit card repayment",
+  learn:     "learning course book education class udemy",
+  gifts:     "gift treat donation party celebration",
+  lending:   "lent borrow loan friend",
+  assets:    "big purchase gadget electronics furniture appliance",
+  invest:    "investment trading stocks crypto mutual fund sip savings",
+  misc:      "other miscellaneous random"
+};
+
+class CategorySearch {
+  constructor(app) {
+    this.app    = app;
+    this.list   = [];   // current suggestion list
+    this.active = 0;    // keyboard-highlighted index
+  }
+
+  score(q, c) {
+    q = q.toLowerCase();
+    const hay = (c.n + " " + c.k + " " + (CAT_SYN[c.k] || "")).toLowerCase();
+    if (c.n.toLowerCase().startsWith(q)) return 100;
+    const wi = hay.split(/\s+/).findIndex(w => w.startsWith(q));
+    if (wi > -1) return 80 - wi;
+    const idx = hay.indexOf(q);
+    if (idx > -1) return 50 - Math.min(idx, 40);
+    // subsequence match (lowest score)
+    let i = 0;
+    for (const ch of hay) { if (ch === q[i]) i++; if (i === q.length) break; }
+    return i === q.length ? 20 : -1;
+  }
+
+  render(q) {
+    const box = $("catSuggest");
+    if (!q) { box.hidden = true; this.list = []; return; }
+    this.list = CATS
+      .map(c => ({c, s: this.score(q, c)}))
+      .filter(x => x.s >= 0)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 6)
+      .map(x => x.c);
+    if (!this.list.length) {
+      box.innerHTML = '<div class="cs-item">no match — pick a chip below</div>';
+      box.hidden = false; return;
+    }
+    this.active = 0;
+    box.innerHTML = this.list.map((c, i) => {
+      const n = CATS.indexOf(c) + 1;
+      return '<div class="cs-item' + (i === 0 ? " active" : "") + '" data-cat="' + c.k + '">' +
+        '<span class="cs-e">' + c.e + '</span><span class="cs-n">' + c.n + '</span>' +
+        (n <= 9 ? '<span class="cs-hint">Alt+' + n + '</span>' : '') + '</div>';
+    }).join("");
+    box.hidden = false;
+  }
+
+  pick(k) {
+    this.app.selCat = k;
+    this.app.renderer.renderChips();
+    const s = $("catSearch"); s.value = ""; $("catSuggest").hidden = true; this.list = [];
+    const c = catByKey(k);
+    this.app.ui.toast(c.e + " " + c.n + " selected");
+    $("amt").focus();
+  }
+
+  wire() {
+    $("catSearch").addEventListener("input", () => this.render($("catSearch").value.trim()));
+
+    $("catSearch").addEventListener("keydown", e => {
+      if (!this.list.length) { if (e.key === "Enter") e.preventDefault(); return; }
+      if (e.key === "ArrowDown")          { e.preventDefault(); this.active = (this.active + 1) % this.list.length; }
+      else if (e.key === "ArrowUp")       { e.preventDefault(); this.active = (this.active - 1 + this.list.length) % this.list.length; }
+      else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); this.pick(this.list[this.active].k); return; }
+      else if (e.key === "Escape")        { $("catSearch").value = ""; $("catSuggest").hidden = true; this.list = []; return; }
+      else return;
+      document.querySelectorAll("#catSuggest .cs-item").forEach((el, i) => el.classList.toggle("active", i === this.active));
+    });
+
+    $("catSuggest").addEventListener("click", e => {
+      const it = e.target.closest("[data-cat]"); if (it) this.pick(it.dataset.cat);
+    });
+
+    $("catSearch").addEventListener("blur", () => setTimeout(() => { $("catSuggest").hidden = true; }, 150));
+  }
+}
+
+
+/* ── chart.js ── */
+/* ── chart.js — daily spend chart + rolling 12-month analysis chart ── */
+
+class Chart {
+  constructor(app) {
+    this.app = app;
+  }
+
+  renderDaily(D) {
+    const W=760, H=250, L=10, R=10, T=20, Bm=28, iw=W-L-R, ih=H-T-Bm;
+    const maxDay = Math.max(...D.perDay, 1);
+    const cumMax = Math.max(D.cum[D.days], D.isCur ? D.proj : 0, 1);
+    const xd  = d  => L + (d - 0.5) * (iw / D.days);
+    const bw  = Math.max(3, (iw / D.days) * 0.6);
+    let bars = "", line = "", dots = "", labels = "", todayMark = "";
+    const lastDay = D.isCur ? D.elapsed : D.days;
+
+    for (let d = 1; d <= D.days; d++) {
+      const v = D.perDay[d];
+      if (v > 0) {
+        const h = Math.max(2, v / maxDay * ih);
+        bars += '<rect x="' + (xd(d)-bw/2) + '" y="' + (T+ih-h) + '" width="' + bw + '" height="' + h + '" rx="2.5" fill="url(#bar)">' +
+          '<title>' + MONTHS[D.m].slice(0,3) + " " + d + " — " + fmt(v) + " spent · running " + fmt(D.cum[d]) + '</title></rect>';
+      }
+      if (d % 5 === 0 || d === 1 || d === D.days)
+        labels += '<text x="' + xd(d) + '" y="' + (H-8) + '" text-anchor="middle" class="ax">' + d + '</text>';
+    }
+
+    const pts = [];
+    for (let d = 1; d <= lastDay; d++)
+      pts.push(xd(d).toFixed(1) + "," + (T + ih - D.cum[d] / cumMax * ih).toFixed(1));
+    if (pts.length > 1)
+      line = '<polyline points="' + pts.join(" ") + '" fill="none" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>';
+    if (pts.length) {
+      const last = pts[pts.length-1].split(",");
+      dots = '<circle cx="' + last[0] + '" cy="' + last[1] + '" r="4.5" fill="#f472b6" filter="url(#glow)"/>';
+    }
+    if (D.isCur) {
+      const x = xd(NOW.getDate());
+      todayMark = '<line x1="' + x + '" y1="' + T + '" x2="' + x + '" y2="' + (T+ih) + '" stroke="rgba(236,243,255,.3)" stroke-dasharray="3 4"/>';
+    }
+
+    $("dailyChart").innerHTML =
+      '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Daily spend and running total">' +
+      '<defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#b06bff"/><stop offset="1" stop-color="#6d28d9"/></linearGradient>' +
+      '<filter id="glow" x="-50%" y="-50%" width="200%" height="200%">' +
+      '<feGaussianBlur stdDeviation="2.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' +
+      '<style>.ax{font:600 10px "JetBrains Mono",monospace;fill:rgba(236,243,255,.35)}</style>' +
+      '<line x1="' + L + '" y1="' + (T+ih) + '" x2="' + (W-R) + '" y2="' + (T+ih) + '" stroke="rgba(255,255,255,.12)"/>' +
+      bars + todayMark + line + dots + labels + '</svg>';
+  }
+
+  /* Rolling 12-month bar chart, ending at the currently viewed month */
+  renderMonthly() {
+    const byM = {};
+    for (const e of this.app.expenses) { const k = e.date.slice(0,7); byM[k] = (byM[k]||0) + e.amount; }
+    const months = []; let y = this.app.view.y, m = this.app.view.m;
+    for (let i = 0; i < 12; i++) {
+      const key = y + "-" + pad(m+1);
+      months.unshift({y, m, key, total: byM[key]||0});
+      m--; if (m < 0) { m = 11; y--; }
+    }
+
+    const W=760, H=250, L=10, R=10, T=20, Bm=28, iw=W-L-R, ih=H-T-Bm;
+    const maxT = Math.max(...months.map(x => x.total), 1);
+    const slot  = iw / months.length, bw = Math.max(8, slot * 0.62);
+    const withVals = months.filter(x => x.total > 0);
+    const avg = withVals.length ? withVals.reduce((s, x) => s + x.total, 0) / withVals.length : 0;
+    let bars = "", labels = "", avgLine = "";
+
+    months.forEach((mo, i) => {
+      const cx = L + slot * (i + 0.5), h = Math.max(2, mo.total / maxT * ih);
+      const isView = (mo.y === this.app.view.y && mo.m === this.app.view.m);
+      bars += '<rect x="' + (cx-bw/2) + '" y="' + (T+ih-h) + '" width="' + bw + '" height="' + h + '" rx="3" fill="url(#bar)" opacity="' + (isView ? 1 : .62) + '" style="cursor:pointer" data-ym="' + mo.y + "-" + mo.m + '">' +
+        '<title>' + MONTHS[mo.m].slice(0,3) + " " + mo.y + " — " + fmt(mo.total) + '</title></rect>';
+      if (isView)
+        bars += '<rect x="' + (cx-bw/2-2) + '" y="' + (T+ih-h-2) + '" width="' + (bw+4) + '" height="' + (h+2) + '" rx="4" fill="none" stroke="#f472b6" stroke-width="1.5" pointer-events="none"/>';
+      labels += '<text x="' + cx + '" y="' + (H-8) + '" text-anchor="middle" class="ax">' +
+        MONTHS[mo.m].slice(0,3) + (mo.m === 0 ? " '" + String(mo.y).slice(2) : "") + '</text>';
+    });
+
+    if (avg > 0) {
+      const ay = T + ih - avg / maxT * ih;
+      avgLine = '<line x1="' + L + '" y1="' + ay + '" x2="' + (W-R) + '" y2="' + ay + '" stroke="#fcd34d" stroke-width="1.3" stroke-dasharray="4 5" opacity=".7"/>' +
+        '<text x="' + (W-R) + '" y="' + (ay-5) + '" text-anchor="end" class="ax" fill="#fcd34d">avg ' + fmt(avg) + '</text>';
+    }
+
+    $("dailyChart").innerHTML =
+      '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Monthly spend">' +
+      '<defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#b06bff"/><stop offset="1" stop-color="#6d28d9"/></linearGradient></defs>' +
+      '<style>.ax{font:600 10px "JetBrains Mono",monospace;fill:rgba(236,243,255,.35)}</style>' +
+      '<line x1="' + L + '" y1="' + (T+ih) + '" x2="' + (W-R) + '" y2="' + (T+ih) + '" stroke="rgba(255,255,255,.12)"/>' +
+      bars + avgLine + labels + '</svg>';
+  }
+
+  wire() {
+    /* Chart mode toggle (Daily / Monthly) */
+    $("chartToggle").addEventListener("click", e => {
+      const b = e.target.closest("[data-mode]"); if (!b) return;
+      this.app.chartMode = b.dataset.mode;
+      document.querySelectorAll("#chartToggle .seg-btn").forEach(x => x.classList.toggle("on", x === b));
+      $("chartTitle").innerHTML = this.app.chartMode === "monthly" ? "Monthly spend (last 12 months)" : "Daily spend &amp; running total";
+      $("chartLegend").style.display = this.app.chartMode === "monthly" ? "none" : "";
+      this.app.render();
+    });
+
+    /* Click a monthly bar → drill into that month */
+    $("dailyChart").addEventListener("click", e => {
+      const r = e.target.closest("[data-ym]"); if (!r) return;
+      const [yy, mm] = r.dataset.ym.split("-").map(Number);
+      this.app.view = {y:yy, m:mm};
+      this.app.chartMode = "daily";
+      document.querySelectorAll("#chartToggle .seg-btn").forEach(x => x.classList.toggle("on", x.dataset.mode === "daily"));
+      $("chartTitle").innerHTML = "Daily spend &amp; running total";
+      $("chartLegend").style.display = "";
+      this.app.render();
+    });
+  }
+}
+
+
+/* ── renderer.js ── */
+/* ── renderer.js — all DOM rendering: hero, stats, rail, ledger, budgets, transactions, chips ── */
+
+class Renderer {
+  constructor(app) {
+    this.app = app;
+  }
+
+  /* ── pure computation ── */
+
+  monthData(y, m) {
+    const days    = new Date(y, m+1, 0).getDate();
+    const isCur   = y === NOW.getFullYear() && m === NOW.getMonth();
+    const isPast  = y < NOW.getFullYear() || (y === NOW.getFullYear() && m < NOW.getMonth());
+    const elapsed = isCur ? NOW.getDate() : (isPast ? days : 0);
+    const list    = this.app.expenses.filter(e => { const d = e.date.split("-"); return +d[0] === y && +d[1] === m+1; });
+    const perDay  = Array(days+1).fill(0);
+    const byCat   = {};
+    let spent = 0;
+    for (const e of list) {
+      const dd = +e.date.split("-")[2];
+      perDay[dd] += e.amount; spent += e.amount;
+      byCat[e.cat] = (byCat[e.cat]||0) + e.amount;
+    }
+    const cum = Array(days+1).fill(0);
+    for (let d = 1; d <= days; d++) cum[d] = cum[d-1] + perDay[d];
+    const avg  = elapsed > 0 ? spent / elapsed : 0;
+    const proj = isCur ? avg * days : spent;
+    return {y, m, days, isCur, isPast, elapsed, list, perDay, cum, byCat, spent, avg, proj};
+  }
+
+  /* ── number animation ── */
+
+  animateNum(el, target, prefixFmt) {
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { el.textContent = prefixFmt(target); return; }
+    const start = performance.now(), dur = 900, from = 0;
+    const step = t => {
+      const p = Math.min((t-start)/dur, 1), ease = 1 - Math.pow(1-p, 3);
+      el.textContent = prefixFmt(from + (target-from) * ease);
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  /* ── main render ── */
+
+  render() {
+    const a   = this.app;
+    const D   = this.monthData(a.view.y, a.view.m);
+    const Pm  = a.view.m === 0 ? 11 : a.view.m - 1;
+    const Py  = a.view.m === 0 ? a.view.y - 1 : a.view.y;
+    const P   = this.monthData(Py, Pm);
+
+    $("monthLabel").textContent = MONTHS[a.view.m].slice(0,3) + " " + a.view.y;
+    $("nextM").disabled = (a.view.y === NOW.getFullYear() && a.view.m === NOW.getMonth());
+    $("heroEyebrow").textContent = D.isCur ? "Spent so far in " + MONTHS[a.view.m] : "Spent in " + MONTHS[a.view.m] + " " + a.view.y;
+    this.animateNum($("heroAmt"), D.spent, fmt);
+
+    /* hero sub: vs last month */
+    if (P.spent > 0) {
+      const diff = D.spent - P.spent, sign = diff <= 0 ? "down" : "up";
+      $("heroSub").innerHTML = "across <b>" + D.list.length + "</b> expenses · <span class='" + sign + "'>" +
+        (diff <= 0 ? "▼ " : "▲ ") + fmt(Math.abs(diff)) + "</span> vs " + MONTHS[P.m].slice(0,3) + " (" + fmt(P.spent) + ")";
+    } else {
+      $("heroSub").innerHTML = "across <b>" + D.list.length + "</b> expenses";
+    }
+
+    /* pace rail + aura */
+    const B = a.budgets.overall;
+    let pace = "ok", msg = "";
+    if (D.isCur) {
+      if (B) {
+        if (D.spent > B)       { pace = "over"; msg = "⛔ Over budget by " + fmt(D.spent-B) + ". Every rupee from here is borrowed from July-you."; }
+        else if (D.proj > B)   { pace = "warn"; msg = "⚠ On pace for " + fmt(D.proj) + " — that overshoots your " + fmt(B) + " budget by " + fmt(D.proj-B) + ". Trim ~" + fmt(Math.max(0,(B-D.spent)/Math.max(1,D.days-D.elapsed))) + "/day to land safe."; }
+        else                   { pace = "ok";   msg = "✓ On pace for " + fmt(D.proj) + " — inside your " + fmt(B) + " budget with " + fmt(B-D.proj) + " breathing room."; }
+        $("railFill").style.width   = Math.min(100, D.spent/B*100) + "%";
+        $("railProj").style.left    = Math.min(100, D.proj/B*100) + "%";
+        $("railProj").style.display = "block";
+        $("railRight").innerHTML    = "budget <b id='railBudget'>" + fmt(B) + "</b>";
+      } else {
+        pace = "ok"; msg = "On pace for " + fmt(D.proj) + " by " + MONTHS[D.m].slice(0,3) + " " + D.days + ". Set a budget (⚙) and I'll glow amber when you drift.";
+        const ref = Math.max(D.proj, D.spent, 1);
+        $("railFill").style.width   = (D.spent/ref*100) + "%";
+        $("railProj").style.left    = Math.min(100, D.proj/ref*100) + "%";
+        $("railProj").style.display = "block";
+        $("railRight").innerHTML    = "projected <b>" + fmt(D.proj) + "</b>";
+      }
+    } else {
+      msg = D.spent > 0 ? "Month closed at " + fmt(D.spent) + " · daily average " + fmt(D.avg) + "." : "No expenses logged this month.";
+      if (B) {
+        pace = D.spent > B ? "over" : "ok";
+        $("railFill").style.width = Math.min(100, B ? D.spent/B*100 : 0) + "%";
+        $("railRight").innerHTML  = "budget <b>" + fmt(B) + "</b>";
+      } else {
+        $("railFill").style.width = D.spent > 0 ? "100%" : "0%";
+        $("railRight").innerHTML  = "";
+      }
+      $("railProj").style.display = "none";
+    }
+    document.body.className   = "pace-" + pace;
+    $("paceMsg").className    = pace;
+    $("paceMsg").textContent  = msg;
+    $("railSpent").textContent = fmt(D.spent);
+
+    /* stat cards */
+    const todayD = NOW.getDate();
+    const tAmt   = D.isCur ? D.perDay[todayD] : 0;
+    const yAmt   = D.isCur ? (todayD > 1 ? D.perDay[todayD-1] : 0) : 0;
+    $("todayAmt").textContent = fmt(tAmt);
+    $("todaySub").textContent = D.isCur ? "yesterday " + fmt(yAmt) : "—";
+    $("avgAmt").textContent   = fmt(D.avg);
+    $("avgSub").textContent   = D.elapsed > 0 ? "over " + D.elapsed + " day" + (D.elapsed > 1 ? "s" : "") : "—";
+    $("projAmt").textContent  = fmt(D.proj);
+    $("projSub").textContent  = D.isCur ? "at current pace, by " + MONTHS[D.m].slice(0,3) + " " + D.days : "actual (month closed)";
+
+    let top = null;
+    for (const k in D.byCat) { if (!top || D.byCat[k] > D.byCat[top]) top = k; }
+    if (top) {
+      const c = catByKey(top);
+      $("topCat").textContent    = c.e + " " + c.n;
+      $("topCatSub").textContent = fmt(D.byCat[top]) + " · " + Math.round(D.byCat[top]/D.spent*100) + "% of month";
+    } else {
+      $("topCat").textContent    = "—";
+      $("topCatSub").textContent = "nothing yet";
+    }
+
+    if (a.chartMode === "monthly") a.chart.renderMonthly(); else a.chart.renderDaily(D);
+    this.renderLedger(D);
+    this.renderBudgets(D);
+    this.renderTxns(D);
+  }
+
+  /* ── day ledger ── */
+
+  renderLedger(D) {
+    const lastDay = D.isCur ? D.elapsed : D.days;
+    const maxDay  = Math.max(...D.perDay, 1);
+    let html = "";
+    for (let d = 1; d <= lastDay; d++) {
+      const dt      = new Date(D.y, D.m, d);
+      const wd      = dt.toLocaleDateString("en-IN", {weekday:"short"});
+      const isToday = D.isCur && d === NOW.getDate();
+      const hasSpend = D.perDay[d] > 0;
+      html += '<tr' + (isToday ? ' class="is-today"' : '') + (hasSpend ? ' data-day="' + d + '"' : '') + '>' +
+        '<td>' + wd + " " + d + (isToday ? " · today" : "") + '</td>' +
+        '<td>' + fmt(D.perDay[d]) + '</td>' +
+        '<td style="text-align:left;width:90px"><span class="mini" style="width:' + Math.round(D.perDay[d]/maxDay*80) + 'px"></span></td>' +
+        '<td>' + fmt(D.cum[d]) + '</td>' +
+        '<td>' + fmt(D.cum[d]/d) + '</td></tr>';
+    }
+    $("dayLedger").innerHTML = html || '<tr><td colspan="5" class="empty">No days yet</td></tr>';
+  }
+
+  /* ── category budgets ── */
+
+  renderBudgets(D) {
+    const maxSpent = Math.max(...Object.values(D.byCat), 1);
+    const rows = CATS
+      .map(c => ({c, sp: D.byCat[c.k]||0, b: this.app.budgets.cats[c.k]}))
+      .filter(r => r.sp || r.b)
+      .sort((a, b) => (b.sp - a.sp) || ((b.b||0) - (a.b||0)));
+
+    let html = "";
+    for (const {c, sp, b} of rows) {
+      let w, cls = "";
+      if (b) { const r = sp/b; w = Math.min(100, r*100); cls = r > 1 ? "over" : (r >= (D.isCur ? D.elapsed/D.days : 1) ? "warn" : ""); }
+      else   w = sp / maxSpent * 100;
+      const pct = D.spent > 0 ? Math.round(sp/D.spent*100) : 0;
+      html += '<div class="b-row"><span class="b-emoji">' + c.e + '</span><span class="b-name">' + c.n +
+        '</span><span class="b-pct">' + pct + '%</span><span class="b-bar"><span class="b-fill ' + cls + '" style="width:' + w + '%"></span></span>' +
+        '<span class="b-amt"><b>' + fmt(sp) + "</b>" + (b ? " / " + fmt(b) : "") + '</span></div>';
+    }
+    $("budgetList").innerHTML = html || '<div class="empty">Log expenses or set budgets (⚙) to see this fill up.</div>';
+  }
+
+  /* ── transactions list ── */
+
+  renderTxns(D) {
+    const a    = this.app;
+    const list = a.txnCat ? D.list.filter(e => e.cat === a.txnCat) : D.list;
+    if (!list.length) {
+      $("txnList").innerHTML = '<div class="empty">' +
+        (a.txnCat ? "No " + catByKey(a.txnCat).n + " expenses in " + MONTHS[D.m] + "." : "Nothing logged in " + MONTHS[D.m] + " yet — add your first expense ↑") +
+        '</div>';
+      return;
+    }
+
+    const txnRow = e => {
+      const c = catByKey(e.cat);
+      return '<div class="txn" data-date="' + e.date + '"><span class="e">' + c.e + '</span><span class="t"><span class="n">' +
+        esc(e.note||c.n) + '</span><span class="c">' + c.n + '</span></span><span class="a">' + fmt(e.amount) +
+        '</span><button class="x" data-del="' + e.id + '" aria-label="Delete">✕</button></div>';
+    };
+
+    let html = "";
+    if (a.txnSort === "date-desc" || a.txnSort === "date-asc") {
+      const byDate = {};
+      for (const e of list) { (byDate[e.date] = byDate[e.date]||[]).push(e); }
+      const dates = Object.keys(byDate).sort();
+      if (a.txnSort === "date-desc") dates.reverse();
+      for (const dt of dates) {
+        const items = byDate[dt], total = items.reduce((s, e) => s + e.amount, 0);
+        const d = new Date(dt + "T00:00:00");
+        html += '<div class="txn-day" data-date="' + dt + '"><div class="day-h"><span>' +
+          d.toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"short"}) +
+          '</span><b>' + fmt(total) + '</b></div>' + items.map(txnRow).join("") + '</div>';
+      }
+    } else {
+      const flat = list.slice();
+      if (a.txnSort === "amt-desc") flat.sort((a, b) => b.amount - a.amount);
+      else if (a.txnSort === "amt-asc") flat.sort((a, b) => a.amount - b.amount);
+      else if (a.txnSort === "cat") flat.sort((a, b) => a.cat < b.cat ? -1 : a.cat > b.cat ? 1 : b.amount - a.amount);
+      html = '<div class="txn-flat">' + flat.map(e => {
+        const c = catByKey(e.cat);
+        const dd = new Date(e.date + "T00:00:00").toLocaleDateString("en-IN", {day:"numeric", month:"short"});
+        return '<div class="txn" data-date="' + e.date + '"><span class="e">' + c.e + '</span><span class="t"><span class="n">' +
+          esc(e.note||c.n) + '</span><span class="c">' + c.n + ' · <span class="tdate">' + dd + '</span></span></span><span class="a">' +
+          fmt(e.amount) + '</span><button class="x" data-del="' + e.id + '" aria-label="Delete">✕</button></div>';
+      }).join("") + '</div>';
+    }
+    $("txnList").innerHTML = html;
+  }
+
+  /* ── category chips ── */
+
+  renderChips() {
+    $("catChips").innerHTML = CATS.map((c, i) =>
+      '<span class="chip' + (c.k === this.app.selCat ? " on" : "") + '" data-cat="' + c.k + '" role="button" tabindex="0">' +
+      c.e + " " + c.n + (i < 9 ? '<span class="k">' + (i+1) + '</span>' : '') + '</span>'
+    ).join("");
+  }
+
+  wire() {
+    /* Category chip click / keyboard */
+    $("catChips").addEventListener("click", e => {
+      const t = e.target.closest(".chip"); if (!t) return;
+      this.app.selCat = t.dataset.cat; this.renderChips();
+    });
+    $("catChips").addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") {
+        const t = e.target.closest(".chip");
+        if (t) { e.preventDefault(); this.app.selCat = t.dataset.cat; this.renderChips(); }
+      }
+    });
+
+    /* Calculator hint */
+    $("amt").addEventListener("input", () => {
+      const v = $("amt").value.trim(), h = $("calcHint");
+      if (v && (v[0] === "=" || /\d[-+*/]/.test(v.replace(/^-/, "")))) {
+        const r = Calculator.evalAmount(v);
+        if (r != null && r > 0) { h.hidden = false; h.dataset.val = r; h.innerHTML = '= <b>' + fmt(r) + '</b> &nbsp;· tap or press Enter'; }
+        else { h.hidden = false; delete h.dataset.val; h.textContent = '…keep typing a calculation'; }
+      } else h.hidden = true;
+    });
+    $("calcHint").addEventListener("click", () => {
+      const h = $("calcHint");
+      if (h.dataset.val) { $("amt").value = h.dataset.val; h.hidden = true; $("amt").focus(); }
+    });
+
+    /* Amount field: Tab fills calc result and stays; Enter adds expense; blur resolves */
+    $("amt").addEventListener("keydown", e => {
+      if (e.key === "Tab" && !e.shiftKey) {
+        const h = $("calcHint");
+        if (!h.hidden && h.dataset.val) { e.preventDefault(); $("amt").value = h.dataset.val; h.hidden = true; }
+        return;
+      }
+      if (e.key === "Enter") this.app.addExpense();
+    });
+    $("amt").addEventListener("blur", () => {
+      const v = $("amt").value.trim();
+      if (v && (v[0] === "=" || /\d[-+*/]/.test(v.replace(/^-/, "")))) {
+        const r = Calculator.evalAmount(v); if (r != null && r > 0) $("amt").value = r;
+      }
+      $("calcHint").hidden = true;
+    });
+
+    /* Note field: Enter adds expense */
+    $("note").addEventListener("keydown", e => { if (e.key === "Enter") this.app.addExpense(); });
+
+    /* Ledger ↔ transactions cross-highlight */
+    $("dayLedger").addEventListener("click", e => {
+      const tr = e.target.closest("tr[data-day]"); if (!tr) return;
+      const a = this.app;
+      const d = +tr.dataset.day, iso = a.view.y + "-" + pad(a.view.m+1) + "-" + pad(d);
+      let needRender = false;
+      if (a.txnCat) { a.txnCat = ""; $("txnFilter").value = ""; needRender = true; }
+      if (a.txnSort !== "date-desc" && a.txnSort !== "date-asc") { a.txnSort = "date-desc"; $("txnSort").value = "date-desc"; needRender = true; }
+      if (needRender) this.app.render();
+      this._glowTxnDay(iso);
+    });
+    $("txnList").addEventListener("click", e => {
+      if (e.target.closest("[data-del]")) return;
+      const t = e.target.closest(".txn[data-date]"); if (!t) return;
+      this._glowLedgerDay(+t.dataset.date.slice(8, 10));
+    });
+  }
+
+  _glowLedgerDay(d) {
+    const tr = $("dayLedger").querySelector('tr[data-day="' + d + '"]');
+    if (tr) { tr.scrollIntoView({behavior:"smooth", block:"center"}); tr.classList.add("glow"); setTimeout(() => tr.classList.remove("glow"), 1900); }
+  }
+  _glowTxnDay(iso) {
+    const el = document.querySelector('.txn-day[data-date="' + iso + '"]');
+    if (el) { el.scrollIntoView({behavior:"smooth", block:"center"}); el.classList.add("glow"); setTimeout(() => el.classList.remove("glow"), 1900); }
+  }
+}
+
+
+/* ── effects.js ── */
+/* ── effects.js — cursor particle trail + entrance card animations ── */
+
+function initCursorFx() {
+  const cv = $("cursorFx"); if (!cv) return;
+  const mm = window.matchMedia;
+  if ((mm && mm("(prefers-reduced-motion: reduce)").matches) || !(mm && mm("(pointer: fine)").matches)) {
+    cv.remove(); return;
+  }
+  const ctx = cv.getContext("2d"); let dpr = 1;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio||1, 2);
+    cv.width  = Math.floor(innerWidth  * dpr);
+    cv.height = Math.floor(innerHeight * dpr);
+    cv.style.width  = innerWidth  + "px";
+    cv.style.height = innerHeight + "px";
+  }
+  resize();
+  addEventListener("resize", resize, {passive:true});
+
+  const COLORS = [[176,107,255],[244,114,182],[252,211,77]]; // violet · pink · gold
+  let parts = [], mx = innerWidth/2*dpr, my = innerHeight/2*dpr, px = mx, py = my, moved = false, ci = 0;
+  addEventListener("mousemove", e => { mx = e.clientX*dpr; my = e.clientY*dpr; moved = true; }, {passive:true});
+
+  function spawn(x, y, boost) {
+    const c = COLORS[(ci++) % COLORS.length];
+    parts.push({x, y, vx:(Math.random()-.5)*0.5*dpr, vy:((Math.random()-.5)*0.5-.25)*dpr, r:(4+Math.random()*6+boost)*dpr, life:1, c});
+  }
+
+  (function loop() {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (moved) {
+      const dx = mx-px, dy = my-py, dist = Math.hypot(dx, dy), steps = Math.min(10, Math.max(1, dist/(5*dpr)));
+      for (let i = 0; i < steps; i++) spawn(px + dx*i/steps, py + dy*i/steps, Math.min(4, dist/(40*dpr)));
+      px = mx; py = my; moved = false;
+    }
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = parts.length-1; i >= 0; i--) {
+      const p = parts[i];
+      p.x += p.vx; p.y += p.vy; p.vy += 0.012*dpr; p.life -= 0.04;
+      if (p.life <= 0) { parts.splice(i, 1); continue; }
+      const rr = p.r * p.life, a = p.life * p.life * 0.55;
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rr);
+      g.addColorStop(0, "rgba(" + p.c[0] + "," + p.c[1] + "," + p.c[2] + "," + a + ")");
+      g.addColorStop(1, "rgba(" + p.c[0] + "," + p.c[1] + "," + p.c[2] + ",0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, 6.2832); ctx.fill();
+    }
+    if (parts.length > 260) parts.splice(0, parts.length - 260);
+    requestAnimationFrame(loop);
+  })();
+}
+
+function initEntranceAnims() {
+  const mm = window.matchMedia;
+  if ((mm && mm("(prefers-reduced-motion: reduce)").matches) || !("IntersectionObserver" in window)) return;
+  const els = [...document.querySelectorAll(".hero,.card")];
+  els.forEach((el, i) => { el.classList.add("reveal"); el.style.setProperty("--d", ((i % 5) * 0.06).toFixed(2) + "s"); });
+  const io = new IntersectionObserver(ents => ents.forEach(en => {
+    if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
+  }), {threshold: 0.06});
+  els.forEach(el => io.observe(el));
+}
+
+
+/* ── keyboard.js ── */
+/* ── keyboard.js — global keyboard shortcuts ── */
+
+class KeyboardHandler {
+  constructor(app) {
+    this.app = app;
+  }
+
+  wire() {
+    const isTyping = el => el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT");
+
+    document.addEventListener("keydown", e => {
+      if (!$("onboard").hidden) return;  // don't hijack during onboarding
+
+      /* Ctrl+J/K/L/; → jump directly to an add-expense field */
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const map = {j:"amt", k:"date", l:"catSearch", ";":"note"};
+        const target = map[e.key.toLowerCase()] || map[e.key];
+        if (target) {
+          e.preventDefault();
+          const el = $(target);
+          el.scrollIntoView({block:"center"}); el.focus();
+          if (el.type !== "date" && el.select) try { el.select(); } catch(_) {}
+          return;
+        }
+      }
+
+      /* Alt+1–9 → pick category chip */
+      if (e.altKey && !e.ctrlKey && !e.metaKey && e.key >= "1" && e.key <= "9") {
+        const idx = +e.key - 1;
+        if (idx < CATS.length) {
+          e.preventDefault();
+          this.app.selCat = CATS[idx].k;
+          this.app.renderer.renderChips();
+          const a = $("amt");
+          if (document.activeElement !== a && !isTyping(document.activeElement)) a.focus();
+        }
+        return;
+      }
+
+      /* ←/→ → change month (when not focused in a field or dialog) */
+      if (!isTyping(document.activeElement) && !document.querySelector("dialog[open]")) {
+        if (e.key === "ArrowLeft")  $("prevM").click();
+        else if (e.key === "ArrowRight") { if (!$("nextM").disabled) $("nextM").click(); }
+      }
+    });
+  }
+}
+
+
+/* ── ui.js ── */
+/* ── ui.js — toast, modals, onboarding, greeting, month picker, settings, data modal ── */
+
+const GREET = {
+  morning:   ["Good morning","Morning","Rise & shine","Bright and early","Top of the morning"],
+  afternoon: ["Good afternoon","Afternoon","Hey there","Hope your day's going well"],
+  evening:   ["Good evening","Evening","Winding down","Hey"],
+  night:     ["Still up","Late one","Burning the midnight oil","Night owl mode"]
+};
+const TAGLINES = [
   "Awareness is the whole game — and you're playing it.",
   "Every entry is a small act of self-respect.",
   "Money respects attention. You're paying it.",
@@ -1762,120 +1898,456 @@ const TAGLINES=[
   "Knowing where it goes is half of getting it back.",
   "One honest entry at a time. That's how it's done."
 ];
-const partOfDay=h=> h<5?"night":h<12?"morning":h<17?"afternoon":h<21?"evening":"night";
-const pickOne=a=>a[Math.floor(Math.random()*a.length)];
-function renderGreeting(){
-  const line=$("greetLine"); if(!line) return;
-  const word=pickOne(GREET[partOfDay(new Date().getHours())]);
-  line.textContent = word + ", " + (userName || "there");
-  $("greetTag").textContent = pickOne(TAGLINES);
-}
-function startNameEdit(){
-  const line=$("greetLine"); if(!line) return;
-  const input=document.createElement("input");
-  input.className="greet-input"; input.value=userName||""; input.placeholder="your name"; input.maxLength=24;
-  line.replaceWith(input); $("greetEdit").hidden=true; input.focus(); input.select();
-  let done=false;
-  const finish=(save)=>{
-    if(done) return; done=true;
-    if(save) userName=input.value.trim().slice(0,24);
-    Store.set(KEY_NAME, userName);
-    const span=document.createElement("span"); span.className="greet-line"; span.id="greetLine";
-    input.replaceWith(span); $("greetEdit").hidden=false; renderGreeting();
-    if(save && userName) toast("Nice to meet you, "+userName+" ✦");
-  };
-  input.addEventListener("keydown",e=>{
-    if(e.key==="Enter"){ e.preventDefault(); finish(true); }
-    else if(e.key==="Escape"){ finish(false); }
-  });
-  input.addEventListener("blur",()=>finish(true));
-}
-$("greetEdit").addEventListener("click",startNameEdit);
+const partOfDay = h => h < 5 ? "night" : h < 12 ? "morning" : h < 17 ? "afternoon" : h < 21 ? "evening" : "night";
+const pickOne   = a => a[Math.floor(Math.random() * a.length)];
 
-/* ---------- fluid glowing cursor trail (canvas particles, desktop + motion-friendly) ---------- */
-(function(){
-  const cv=$("cursorFx"); if(!cv) return;
-  const mm=window.matchMedia;
-  if((mm&&mm("(prefers-reduced-motion: reduce)").matches) || !(mm&&mm("(pointer: fine)").matches)){ cv.remove(); return; }
-  const ctx=cv.getContext("2d"); let W,H,dpr=1;
-  function resize(){ dpr=Math.min(window.devicePixelRatio||1,2);
-    cv.width=Math.floor(innerWidth*dpr); cv.height=Math.floor(innerHeight*dpr);
-    cv.style.width=innerWidth+"px"; cv.style.height=innerHeight+"px"; }
-  resize(); addEventListener("resize",resize,{passive:true});
-  const COLORS=[[176,107,255],[244,114,182],[252,211,77]]; // violet · pink · gold
-  let parts=[], mx=innerWidth/2*dpr, my=innerHeight/2*dpr, px=mx, py=my, moved=false, ci=0;
-  addEventListener("mousemove",e=>{ mx=e.clientX*dpr; my=e.clientY*dpr; moved=true; },{passive:true});
-  function spawn(x,y,boost){
-    const c=COLORS[(ci++)%COLORS.length];
-    parts.push({x,y, vx:(Math.random()-.5)*0.5*dpr, vy:((Math.random()-.5)*0.5-0.25)*dpr,
-      r:(4+Math.random()*6+boost)*dpr, life:1, c});
+class UI {
+  constructor(app) {
+    this.app         = app;
+    this.toastTimer  = null;
+    this.mpYearShown = NOW.getFullYear();
   }
-  (function loop(){
-    ctx.clearRect(0,0,cv.width,cv.height);
-    if(moved){
-      const dx=mx-px, dy=my-py, dist=Math.hypot(dx,dy), steps=Math.min(10,Math.max(1,dist/(5*dpr)));
-      for(let i=0;i<steps;i++){ spawn(px+dx*i/steps, py+dy*i/steps, Math.min(4,dist/(40*dpr))); }
-      px=mx; py=my; moved=false;
-    }
-    ctx.globalCompositeOperation="lighter";
-    for(let i=parts.length-1;i>=0;i--){ const p=parts[i];
-      p.x+=p.vx; p.y+=p.vy; p.vy+=0.012*dpr; p.life-=0.04;
-      if(p.life<=0){ parts.splice(i,1); continue; }
-      const rr=p.r*p.life, a=p.life*p.life*0.55;
-      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,rr);
-      g.addColorStop(0,"rgba("+p.c[0]+","+p.c[1]+","+p.c[2]+","+a+")");
-      g.addColorStop(1,"rgba("+p.c[0]+","+p.c[1]+","+p.c[2]+",0)");
-      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,rr,0,6.2832); ctx.fill();
-    }
-    if(parts.length>260) parts.splice(0,parts.length-260);
-    requestAnimationFrame(loop);
-  })();
-})();
 
-/* ---------- entrance animations: reveal cards on load + scroll ---------- */
-(function(){
-  const mm=window.matchMedia;
-  if((mm&&mm("(prefers-reduced-motion: reduce)").matches) || !("IntersectionObserver" in window)) return;
-  const els=[...document.querySelectorAll(".hero,.card")];
-  els.forEach((el,i)=>{ el.classList.add("reveal"); el.style.setProperty("--d",((i%5)*0.06).toFixed(2)+"s"); });
-  const io=new IntersectionObserver(ents=>ents.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target); } }),{threshold:0.06});
-  els.forEach(el=>io.observe(el));
-})();
+  /* ── toast ── */
 
-/* ================= init ================= */
-(async function init(){
-  await Store.init();
-  loadOutbox();
-  try{ cloudUrl=localStorage.getItem(KEY_URL)||null; }catch(e){ cloudUrl=null; }
-
-  // load local cache first → instant paint, never a blank screen
-  try{
-    const e=await Store.get(KEY_EXP); if(e) expenses=JSON.parse(e)||[];
-    const b=await Store.get(KEY_BUD); if(b) budgets=Object.assign({overall:null,cats:{}},JSON.parse(b));
-    const m=await Store.get(KEY_META); if(m) meta=Object.assign(meta,JSON.parse(m));
-    const nm=await Store.get(KEY_NAME); if(nm) userName=nm;
-  }catch(err){ console.error("load failed",err); }
-
-  // seed sample history only for a brand-new, never-connected user
-  if(!expenses.length && !cloudUrl){ expenses=SEED.slice(); sortExp(); persist();
-    if(!meta.seedDismissed) $("seedBanner").hidden=false; }
-
-  $("date").value=todayISO();
-  $("todayPill").textContent = now.toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
-  fillTxnFilter();
-  renderChips(); updateConnUI(); renderGreeting(); render();
-
-  if(cloudUrl){
-    // background: pull the latest from the Sheet (source of truth), then flush any offline writes
-    if(!expenses.length) document.body.classList.add("loading-cloud");
-    await loadFromCloud();
-    document.body.classList.remove("loading-cloud");
-    render();
-    flushOutbox();
-  } else if(!meta.onboardSkipped){
-    openOnboard();      // first-ever open: welcome them into connecting Drive
+  toast(msg, actLabel, actFn) {
+    $("toastMsg").textContent = msg;
+    const b = $("toastAct");
+    if (actLabel) { b.hidden = false; b.textContent = actLabel; b.onclick = () => { actFn(); this.hideToast(); }; }
+    else b.hidden = true;
+    $("toast").classList.add("show");
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => this.hideToast(), 4500);
   }
-})();
+  hideToast() { $("toast").classList.remove("show"); }
+
+  /* ── greeting ── */
+
+  renderGreeting() {
+    const line = $("greetLine"); if (!line) return;
+    line.textContent = pickOne(GREET[partOfDay(new Date().getHours())]) + ", " + (this.app.userName || "there");
+    $("greetTag").textContent = pickOne(TAGLINES);
+  }
+
+  startNameEdit() {
+    const line = $("greetLine"); if (!line) return;
+    const input = document.createElement("input");
+    input.className = "greet-input"; input.value = this.app.userName || ""; input.placeholder = "your name"; input.maxLength = 24;
+    line.replaceWith(input); $("greetEdit").hidden = true; input.focus(); input.select();
+    let done = false;
+    const finish = save => {
+      if (done) return; done = true;
+      if (save) this.app.userName = input.value.trim().slice(0, 24);
+      Store.set(KEY_NAME, this.app.userName);
+      const span = document.createElement("span"); span.className = "greet-line"; span.id = "greetLine";
+      input.replaceWith(span); $("greetEdit").hidden = false; this.renderGreeting();
+      if (save && this.app.userName) this.toast("Nice to meet you, " + this.app.userName + " ✦");
+    };
+    input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); finish(true); } else if (e.key === "Escape") finish(false); });
+    input.addEventListener("blur", () => finish(true));
+  }
+
+  /* ── month picker ── */
+
+  openMonthPicker()  { this.mpYearShown = this.app.view.y; this._renderMonthPicker(); $("monthPicker").hidden = false; }
+  closeMonthPicker() { $("monthPicker").hidden = true; }
+
+  _renderMonthPicker() {
+    $("mpYear").textContent = this.mpYearShown;
+    const maxY = NOW.getFullYear();
+    $("mpNextY").disabled = this.mpYearShown >= maxY;
+    $("mpGrid").innerHTML = MONTHS.map((name, i) => {
+      const future = this.mpYearShown > maxY || (this.mpYearShown === maxY && i > NOW.getMonth());
+      const cur    = (i === this.app.view.m && this.mpYearShown === this.app.view.y);
+      return '<button data-m="' + i + '"' + (cur ? ' class="cur"' : '') + (future ? ' disabled' : '') + '>' + name.slice(0,3) + '</button>';
+    }).join("");
+  }
+
+  /* ── onboarding / cloud connection ── */
+
+  openOnboard() {
+    $("cloudUrlInput").value = this.app.cloudUrl || "";
+    const v = $("obVerify"); v.textContent = ""; v.className = "ob-verify";
+    $("obChoose").hidden = false; $("obFlow").hidden = true;
+    $("onboard").hidden = false;
+  }
+  closeOnboard() { $("onboard").hidden = true; }
+
+  chooseMode(mode) {
+    const existing = mode === "existing";
+    $("obChoose").hidden = true; $("obFlow").hidden = false;
+    $("obStep1").hidden = existing; $("obStep2").hidden = existing;
+    $("obStep3Num").textContent  = existing ? "1" : "3";
+    $("obStep3Title").textContent = existing ? "Link your existing Sheet" : "Paste your URL";
+    $("obStep3Desc").innerHTML   = existing
+      ? "Open your existing PaisaPulse Sheet → <code>Extensions → Apps Script → Deploy → Manage deployments</code> to copy its Web app URL (or paste the one you saved). Connecting <b>pulls all the data from that Sheet</b> onto this device — the Sheet itself isn't changed."
+      : "Paste the Web app URL below and connect — I'll verify it can talk to your Sheet before saving anything.";
+    const v = $("obVerify"); v.textContent = ""; v.className = "ob-verify";
+  }
+
+  async connectCloud() {
+    const url = $("cloudUrlInput").value.trim(), v = $("obVerify");
+    if (!URL_RE.test(url)) {
+      v.className = "ob-verify err";
+      v.textContent = "That doesn't look like a Web app URL — it should end in /exec, like https://script.google.com/macros/s/…/exec";
+      return;
+    }
+    v.className = "ob-verify busy"; v.textContent = "Checking the connection to your Sheet…";
+    if (!(await this.app.cloud.ping(url))) {
+      v.className = "ob-verify err";
+      v.textContent = "Couldn't reach it. Make sure you deployed as a Web app with access = Anyone, and pasted the /exec URL.";
+      return;
+    }
+    this.app.cloudUrl = url;
+    try { localStorage.setItem(KEY_URL, url); } catch(e) {}
+    v.className = "ob-verify ok"; v.textContent = "✓ Connected! Syncing your Sheet…";
+    await this.app.cloud.firstSync();
+    this._dismissSeedBanner();
+    this.closeOnboard(); this.app.cloud.updateConnUI(); this.toast("Google Drive connected ✓");
+  }
+
+  /* ── settings modal ── */
+
+  fillSettings() {
+    $("bOverall").value = this.app.budgets.overall || "";
+    $("bCats").innerHTML = CATS.map(c =>
+      '<div class="set-row"><label>' + c.e + " " + c.n + '</label><input data-bcat="' + c.k +
+      '" inputmode="numeric" placeholder="—" value="' + (this.app.budgets.cats[c.k]||"") + '"></div>'
+    ).join("");
+  }
+
+  /* ── data modal ── */
+
+  fillTxnFilter() {
+    $("txnFilter").innerHTML = '<option value="">All categories</option>' +
+      CATS.map(c => '<option value="' + c.k + '">' + c.e + " " + c.n + '</option>').join("");
+  }
+
+  finishImport(res) {
+    this.app.render();
+    if (res.rows && res.rows.length) this.app.cloud.sync({op:"import", expenses: res.rows});
+    this.toast(
+      "Imported " + res.added + " · skipped " + res.skipped + " duplicate" + (res.skipped === 1 ? "" : "s") +
+      (res.bad ? " · " + res.bad + " unreadable" : "") +
+      (this.app.cloudUrl && res.added ? " · saving to Drive…" : "")
+    );
+    if (res.added) $("dataModal").close();
+  }
+
+  csvOut() {
+    let s = "Date,Category,Description,Amount\n";
+    for (const e of this.app.expenses) {
+      const c = catByKey(e.cat);
+      s += e.date + ',"' + c.n + '","' + String(e.note||"").replace(/"/g,'""') + '",' + e.amount + "\n";
+    }
+    return s;
+  }
+
+  download(name, text, type) {
+    try {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([text], {type}));
+      a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
+    } catch(err) { console.error(err); }
+  }
+
+  _dismissSeedBanner() {
+    this.app.meta.seedDismissed = true;
+    $("seedBanner").hidden = true;
+    Store.set(KEY_META, JSON.stringify(this.app.meta));
+  }
+
+  /* ── event wiring ── */
+
+  wire() {
+    const a = this.app;
+
+    /* kbd hint */
+    $("kbdHint").innerHTML = 'Amount does math (<kbd>=20+80</kbd>) · <kbd>Ctrl</kbd>+<kbd>J/K/L/;</kbd> jumps amount → date → category → note (or <kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>9</kbd>) · <kbd>Enter</kbd> adds · <kbd>←</kbd>/<kbd>→</kbd> change month';
+
+    /* add expense */
+    $("btnAdd").addEventListener("click", () => a.addExpense());
+
+    /* delete */
+    $("txnList").addEventListener("click", e => {
+      const b = e.target.closest("[data-del]"); if (!b) return;
+      const id = b.dataset.del;
+      if (a.meta.confirmDelete === false) { a.deleteTxn(id); return; }
+      if (b.dataset.armed) { a.deleteTxn(id); return; }
+      b.dataset.armed = "1"; b.classList.add("confirm"); b.textContent = "Delete?";
+      setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.classList.remove("confirm"); b.textContent = "✕"; } }, 3000);
+    });
+
+    /* confirm-delete toggle */
+    $("confirmDel").checked = a.meta.confirmDelete !== false;
+    $("confirmDel").addEventListener("change", () => { a.meta.confirmDelete = $("confirmDel").checked; a.persist(); });
+
+    /* month nav */
+    $("prevM").addEventListener("click", () => { a.view.m--; if (a.view.m < 0) { a.view.m = 11; a.view.y--; } a.render(); });
+    $("nextM").addEventListener("click", () => { a.view.m++; if (a.view.m > 11) { a.view.m = 0; a.view.y++; } a.render(); });
+
+    /* month picker */
+    $("monthLabel").addEventListener("click", e => { e.stopPropagation(); $("monthPicker").hidden ? this.openMonthPicker() : this.closeMonthPicker(); });
+    $("mpPrevY").addEventListener("click", () => { this.mpYearShown--; this._renderMonthPicker(); });
+    $("mpNextY").addEventListener("click", () => { if (this.mpYearShown < NOW.getFullYear()) { this.mpYearShown++; this._renderMonthPicker(); } });
+    $("mpToday").addEventListener("click", () => { a.view = {y:NOW.getFullYear(), m:NOW.getMonth()}; this.closeMonthPicker(); a.render(); });
+    $("mpGrid").addEventListener("click", e => {
+      const b = e.target.closest("[data-m]"); if (!b || b.disabled) return;
+      a.view = {y:this.mpYearShown, m:+b.dataset.m}; this.closeMonthPicker(); a.render();
+    });
+    document.addEventListener("click", e => { if (!$("monthPicker").hidden && !e.target.closest(".month-nav")) this.closeMonthPicker(); });
+
+    /* txn sort + filter */
+    $("txnFilter").addEventListener("change", () => { a.txnCat = $("txnFilter").value; a.render(); });
+    $("txnSort").addEventListener("change",   () => { a.txnSort = $("txnSort").value;  a.render(); });
+
+    /* modals: open */
+    $("btnData").addEventListener("click",     () => $("dataModal").showModal());
+    $("btnSettings").addEventListener("click", () => { this.fillSettings(); $("settingsModal").showModal(); });
+    document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => b.closest("dialog").close()));
+
+    /* tabs inside data modal */
+    document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === t));
+      $("tab-import").hidden = t.dataset.tab !== "import";
+      $("tab-export").hidden = t.dataset.tab !== "export";
+    }));
+
+    /* import */
+    $("csvFile").addEventListener("change", e => {
+      const f = e.target.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => { this.finishImport(Calculator.importCSV(String(r.result), a.expenses)); e.target.value = ""; };
+      r.readAsText(f);
+    });
+    $("btnImport").addEventListener("click", () => {
+      const t = $("csvPaste").value.trim();
+      if (!t) { this.toast("Choose a CSV file or paste CSV text"); return; }
+      const res = Calculator.importCSV(t, a.expenses);
+      if (res.rows.length) { a.expenses.push(...res.rows); a.sortExp(); a.persist(); }
+      this.finishImport(res);
+      $("csvPaste").value = "";
+    });
+
+    /* export */
+    $("btnBackup").addEventListener("click", () => {
+      const j = JSON.stringify({app:"PaisaPulse", v:1, exported:new Date().toISOString(), expenses:a.expenses, budgets:a.budgets}, null, 1);
+      $("exportBox").value = j; this.download("paisapulse-backup-" + todayISO() + ".json", j, "application/json");
+      this.toast("Backup ready — keep it in Drive too");
+    });
+    $("btnCsvOut").addEventListener("click", () => {
+      const c = this.csvOut(); $("exportBox").value = c;
+      this.download("paisapulse-expenses-" + todayISO() + ".csv", c, "text/csv");
+      this.toast("CSV ready");
+    });
+    $("btnCopyExport").addEventListener("click", async () => {
+      const t = $("exportBox").value; if (!t) { this.toast("Generate an export first"); return; }
+      try { await navigator.clipboard.writeText(t); this.toast("Copied ✓"); }
+      catch(e) { $("exportBox").select(); this.toast("Press Ctrl+C to copy"); }
+    });
+
+    /* restore */
+    this._armButton($("btnRestore"), "Restore from pasted JSON (replaces everything)", () => {
+      try {
+        const j = JSON.parse($("exportBox").value);
+        if (!Array.isArray(j.expenses)) throw new Error("no expenses array");
+        a.expenses = j.expenses.filter(e => e && e.date && e.amount > 0).map(e => ({id:e.id||uid(), date:e.date, amount:+e.amount, cat:e.cat||"misc", note:e.note||""}));
+        a.budgets  = j.budgets && typeof j.budgets === "object" ? {overall:j.budgets.overall||null, cats:j.budgets.cats||{}} : a.budgets;
+        a.sortExp(); a.persist(); a.render(); $("dataModal").close();
+        if (a.cloudUrl) { a.cloud.sync({op:"replace", expenses:a.expenses}); a.cloud.sync({op:"budgets", budgets:a.budgets}); }
+        this.toast("Restored " + a.expenses.length + " expenses ✓");
+      } catch(e) { this.toast("That doesn't look like a PaisaPulse backup"); }
+    });
+
+    /* safe reset */
+    $("wipeConfirm").addEventListener("input", () => { $("btnWipe").disabled = $("wipeConfirm").value.trim().toUpperCase() !== "RESET"; });
+    $("btnWipe").addEventListener("click", () => {
+      if ($("wipeConfirm").value.trim().toUpperCase() !== "RESET") return;
+      a.expenses = []; a.budgets = {overall:null, cats:{}};
+      Store.set(KEY_EXP, JSON.stringify(a.expenses)); Store.set(KEY_BUD, JSON.stringify(a.budgets));
+      $("wipeConfirm").value = ""; $("btnWipe").disabled = true;
+      a.render(); $("settingsModal").close();
+      this.toast(a.cloudUrl ? "Local copy cleared — reload to pull your Sheet back" : "Local copy cleared");
+    });
+
+    /* save budgets */
+    $("btnSaveBudgets").addEventListener("click", () => {
+      const o = Calculator.parseAmount($("bOverall").value); a.budgets.overall = (o && o > 0) ? o : null;
+      document.querySelectorAll("[data-bcat]").forEach(inp => {
+        const v = Calculator.parseAmount(inp.value);
+        if (v && v > 0) a.budgets.cats[inp.dataset.bcat] = v; else delete a.budgets.cats[inp.dataset.bcat];
+      });
+      a.persist(); a.render(); $("settingsModal").close();
+      a.cloud.sync({op:"budgets", budgets:a.budgets});
+      this.toast("Budgets saved" + (a.cloudUrl ? " · saving…" : " ✓"));
+    });
+
+    /* greeting name edit */
+    $("greetEdit").addEventListener("click", () => this.startNameEdit());
+
+    /* seed banner dismiss */
+    $("seedDismiss").addEventListener("click", () => this._dismissSeedBanner());
+
+    /* onboarding */
+    $("obPickNew").addEventListener("click",      () => this.chooseMode("new"));
+    $("obPickExisting").addEventListener("click", () => this.chooseMode("existing"));
+    $("obBack").addEventListener("click",         () => { $("obFlow").hidden = true; $("obChoose").hidden = false; });
+    $("obNewSheet").addEventListener("click",     () => window.open("https://sheets.new", "_blank", "noopener"));
+    $("obShowHow").addEventListener("click",      () => { const h = $("obHowto"); h.hidden = !h.hidden; $("obShowHow").textContent = h.hidden ? "Show deploy steps" : "Hide steps"; });
+    $("scriptCode").value = ($("ppScriptSrc").textContent || "").replace(/^\s+/, "");
+    $("obCopyScript").addEventListener("click", async () => {
+      const code = $("scriptCode").value;
+      try { await navigator.clipboard.writeText(code); this.toast("Script copied — paste it into Apps Script ✓"); }
+      catch(e) { $("scriptCode").focus(); $("scriptCode").select(); this.toast("Press Ctrl+C to copy the script"); }
+    });
+    $("obConnect").addEventListener("click",       () => this.connectCloud());
+    $("cloudUrlInput").addEventListener("keydown", e => { if (e.key === "Enter") this.connectCloud(); });
+    $("obSkip").addEventListener("click", () => { a.meta.onboardSkipped = true; a.persist(); this.closeOnboard(); a.cloud.updateConnUI(); });
+  }
+
+  /* Arm-to-confirm helper: first click → confirm text, second click → execute */
+  _armButton(btn, label, fn) {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.armed) { delete btn.dataset.armed; btn.textContent = label; fn(); }
+      else {
+        btn.dataset.armed = "1"; btn.textContent = "Sure? Click again to confirm";
+        setTimeout(() => { delete btn.dataset.armed; btn.textContent = label; }, 3500);
+      }
+    });
+  }
+}
+
+
+/* ── app.js ── */
+/* ── app.js — PaisaPulse: main class, state, lifecycle ── */
+
+class PaisaPulse {
+  constructor() {
+    /* ── app state ── */
+    this.expenses  = [];
+    this.budgets   = {overall: null, cats: {}};
+    this.meta      = {seedDismissed: false};
+    this.view      = {y: NOW.getFullYear(), m: NOW.getMonth()};
+    this.selCat    = "dining";
+    this.txnCat    = "";          // transactions category filter ("" = all)
+    this.txnSort   = "date-desc"; // transactions sort order
+    this.chartMode = "daily";     // "daily" | "monthly"
+    this.userName  = "";
+    this.cloudUrl  = null;
+    this.outbox    = [];          // write queue — drained by CloudSync.flushOutbox
+    this.saveTimer = null;
+    this.lastDeleted = null;
+
+    /* ── sub-systems (each receives a reference back to this app) ── */
+    this.cloud    = new CloudSync(this);
+    this.search   = new CategorySearch(this);
+    this.chart    = new Chart(this);
+    this.renderer = new Renderer(this);
+    this.keyboard = new KeyboardHandler(this);
+    this.ui       = new UI(this);
+  }
+
+  /* ── core state helpers ── */
+
+  render()  { this.renderer.render(); }
+  sortExp() { this.expenses.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0); }
+
+  persist() {
+    clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => {
+      Store.set(KEY_EXP,  JSON.stringify(this.expenses));
+      Store.set(KEY_BUD,  JSON.stringify(this.budgets));
+      Store.set(KEY_META, JSON.stringify(this.meta));
+    }, 200);
+  }
+
+  /* ── expense mutations ── */
+
+  addExpense() {
+    const a = Calculator.parseAmount($("amt").value);
+    if (!a || a <= 0) { this.ui.toast("Enter an amount first"); $("amt").focus(); return; }
+    const d   = $("date").value || todayISO();
+    const exp = {id:uid(), date:d, amount:a, cat:this.selCat, note:$("note").value.trim(), createdAt:new Date().toISOString()};
+    this.expenses.push(exp); this.sortExp(); this.persist();
+    const parts = d.split("-"); this.view = {y:+parts[0], m:+parts[1]-1};
+    $("amt").value = ""; $("note").value = "";
+    this.render();
+    this.ui.toast("Added " + fmt(a) + (this.cloudUrl ? " · saving…" : " ✓"));
+    this.cloud.sync({op:"add", expense:exp});
+  }
+
+  deleteTxn(id) {
+    const i = this.expenses.findIndex(x => x.id === id); if (i < 0) return;
+    this.lastDeleted = this.expenses.splice(i, 1)[0];
+    this.persist(); this.render();
+    this.cloud.sync({op:"delete", id:this.lastDeleted.id});
+    this.ui.toast("Deleted " + fmt(this.lastDeleted.amount), "Undo", () => {
+      this.expenses.push(this.lastDeleted); this.sortExp(); this.persist(); this.render();
+      this.cloud.sync({op:"add", expense:this.lastDeleted});
+    });
+  }
+
+  /* ── initialisation ── */
+
+  async init() {
+    await Store.init();
+    this.cloud.loadOutbox();
+    try { this.cloudUrl = localStorage.getItem(KEY_URL) || null; } catch(e) { this.cloudUrl = null; }
+
+    /* Load local cache first → instant paint, never a blank screen */
+    try {
+      const e = await Store.get(KEY_EXP);  if (e) this.expenses = JSON.parse(e) || [];
+      const b = await Store.get(KEY_BUD);  if (b) this.budgets  = Object.assign({overall:null, cats:{}}, JSON.parse(b));
+      const m = await Store.get(KEY_META); if (m) this.meta     = Object.assign(this.meta, JSON.parse(m));
+      const n = await Store.get(KEY_NAME); if (n) this.userName = n;
+    } catch(err) { console.error("load failed", err); }
+
+    /* Seed only for a brand-new, never-connected user */
+    if (!this.expenses.length && !this.cloudUrl) {
+      this.expenses = SEED.slice(); this.sortExp(); this.persist();
+      if (!this.meta.seedDismissed) $("seedBanner").hidden = false;
+    }
+
+    /* Initial DOM setup */
+    $("date").value        = todayISO();
+    $("todayPill").textContent = NOW.toLocaleDateString("en-IN", {weekday:"short", day:"numeric", month:"short", year:"numeric"});
+
+    this.ui.fillTxnFilter();
+    this.renderer.renderChips();
+    this.cloud.updateConnUI();
+    this.ui.renderGreeting();
+    this.render();
+
+    /* Wire all event listeners */
+    this.cloud.wire();
+    this.search.wire();
+    this.renderer.wire();
+    this.chart.wire();
+    this.keyboard.wire();
+    this.ui.wire();
+
+    /* Connect to cloud or show onboarding */
+    if (this.cloudUrl) {
+      if (!this.expenses.length) document.body.classList.add("loading-cloud");
+      await this.cloud.loadFromCloud();
+      document.body.classList.remove("loading-cloud");
+      this.render();
+      this.cloud.flushOutbox();
+    } else if (!this.meta.onboardSkipped) {
+      this.ui.openOnboard();
+    }
+
+    /* Visual effects (non-essential, last) */
+    initCursorFx();
+    initEntranceAnims();
+  }
+}
+
+/* Bootstrap */
+const app = new PaisaPulse();
+app.init();
+
 </script>
 </body>
 </html>
