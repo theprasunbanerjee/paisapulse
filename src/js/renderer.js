@@ -234,7 +234,7 @@ class Renderer {
     /* Category chip click / keyboard */
     $("catChips").addEventListener("click", e => {
       const t = e.target.closest(".chip"); if (!t) return;
-      this.app.selCat = t.dataset.cat; this.renderChips();
+      this.app.selCat = t.dataset.cat; Sounds.chip(); this.renderChips();
     });
     $("catChips").addEventListener("keydown", e => {
       if (e.key === "Enter" || e.key === " ") {

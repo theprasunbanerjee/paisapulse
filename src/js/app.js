@@ -51,6 +51,7 @@ class PaisaPulse {
     const parts = d.split("-"); this.view = {y:+parts[0], m:+parts[1]-1};
     $("amt").value = ""; $("note").value = "";
     this.render();
+    Sounds.add();
     this.ui.toast("Added " + fmt(a) + (this.cloudUrl ? " · saving…" : " ✓"));
     this.cloud.sync({op:"add", expense:exp});
   }
@@ -58,6 +59,7 @@ class PaisaPulse {
   deleteTxn(id) {
     const i = this.expenses.findIndex(x => x.id === id); if (i < 0) return;
     this.lastDeleted = this.expenses.splice(i, 1)[0];
+    Sounds.delete();
     this.persist(); this.render();
     this.cloud.sync({op:"delete", id:this.lastDeleted.id});
     this.ui.toast("Deleted " + fmt(this.lastDeleted.amount), "Undo", () => {
@@ -119,6 +121,7 @@ class PaisaPulse {
     /* Visual effects (non-essential, last) */
     initCursorFx();
     initEntranceAnims();
+    Sounds.wireGlobal();
   }
 }
 

@@ -127,7 +127,7 @@ class UI {
     v.className = "ob-verify ok"; v.textContent = "✓ Connected! Syncing your Sheet…";
     await this.app.cloud.firstSync();
     this._dismissSeedBanner();
-    this.closeOnboard(); this.app.cloud.updateConnUI(); this.toast("Google Drive connected ✓");
+    this.closeOnboard(); this.app.cloud.updateConnUI(); this.toast("Google Drive connected ✓"); Sounds.success();
   }
 
   /* ── settings modal ── */
@@ -208,8 +208,8 @@ class UI {
     $("confirmDel").addEventListener("change", () => { a.meta.confirmDelete = $("confirmDel").checked; a.persist(); });
 
     /* month nav */
-    $("prevM").addEventListener("click", () => { a.view.m--; if (a.view.m < 0) { a.view.m = 11; a.view.y--; } a.render(); });
-    $("nextM").addEventListener("click", () => { a.view.m++; if (a.view.m > 11) { a.view.m = 0; a.view.y++; } a.render(); });
+    $("prevM").addEventListener("click", () => { a.view.m--; if (a.view.m < 0) { a.view.m = 11; a.view.y--; } Sounds.navPrev(); a.render(); });
+    $("nextM").addEventListener("click", () => { a.view.m++; if (a.view.m > 11) { a.view.m = 0; a.view.y++; } Sounds.navNext(); a.render(); });
 
     /* month picker */
     $("monthLabel").addEventListener("click", e => { e.stopPropagation(); $("monthPicker").hidden ? this.openMonthPicker() : this.closeMonthPicker(); });
@@ -227,8 +227,15 @@ class UI {
     $("txnSort").addEventListener("change",   () => { a.txnSort = $("txnSort").value;  a.render(); });
 
     /* modals: open */
-    $("btnData").addEventListener("click",     () => $("dataModal").showModal());
-    $("btnSettings").addEventListener("click", () => { this.fillSettings(); $("settingsModal").showModal(); });
+    $("btnData").addEventListener("click",     () => { Sounds.open(); $("dataModal").showModal(); });
+    $("btnSettings").addEventListener("click", () => { Sounds.open(); this.fillSettings(); $("settingsModal").showModal(); });
+
+    /* sound toggle */
+    const sndBtn = $("btnSound");
+    if (sndBtn) {
+      sndBtn.textContent = Sounds.on ? "🔊" : "🔇";
+      sndBtn.addEventListener("click", () => { sndBtn.textContent = Sounds.toggle() ? "🔊" : "🔇"; });
+    }
     document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => b.closest("dialog").close()));
 
     /* tabs inside data modal */
@@ -236,6 +243,7 @@ class UI {
       document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === t));
       $("tab-import").hidden = t.dataset.tab !== "import";
       $("tab-export").hidden = t.dataset.tab !== "export";
+      Sounds.tab();
     }));
 
     /* import */

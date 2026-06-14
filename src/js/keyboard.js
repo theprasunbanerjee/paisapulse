@@ -30,7 +30,7 @@ class KeyboardHandler {
         if (idx < CATS.length) {
           e.preventDefault();
           this.app.selCat = CATS[idx].k;
-          this.app.renderer.renderChips();
+          Sounds.chip(); this.app.renderer.renderChips();
           const a = $("amt");
           if (document.activeElement !== a && !isTyping(document.activeElement)) a.focus();
         }
