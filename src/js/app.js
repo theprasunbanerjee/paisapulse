@@ -16,6 +16,8 @@ class PaisaPulse {
     this.outbox    = [];          // write queue — drained by CloudSync.flushOutbox
     this.saveTimer = null;
     this.lastDeleted = null;
+    this.editingId   = null;
+    this.editSelCat  = "dining";
 
     /* ── sub-systems (each receives a reference back to this app) ── */
     this.cloud    = new CloudSync(this);
@@ -66,6 +68,37 @@ class PaisaPulse {
       this.expenses.push(this.lastDeleted); this.sortExp(); this.persist(); this.render();
       this.cloud.sync({op:"add", expense:this.lastDeleted});
     });
+  }
+
+  editTxn(id) {
+    const exp = this.expenses.find(x => x.id === id); if (!exp) return;
+    this.editingId  = id;
+    this.editSelCat = exp.cat;
+    $("editAmt").value  = exp.amount;
+    $("editDate").value = exp.date;
+    $("editNote").value = exp.note || "";
+    this.renderer.renderEditChips();
+    $("editModal").showModal();
+    Sounds.open();
+  }
+
+  saveEdit() {
+    const id = this.editingId; if (!id) return;
+    const a = Calculator.parseAmount($("editAmt").value);
+    if (!a || a <= 0) { this.ui.toast("Enter a valid amount"); $("editAmt").focus(); return; }
+    const i = this.expenses.findIndex(x => x.id === id); if (i < 0) return;
+    const old = this.expenses[i];
+    const updated = {id: old.id, date: $("editDate").value || old.date, amount: a, cat: this.editSelCat, note: $("editNote").value.trim(), createdAt: old.createdAt || ""};
+    this.expenses[i] = updated;
+    this.sortExp(); this.persist();
+    const parts = updated.date.split("-"); this.view = {y:+parts[0], m:+parts[1]-1};
+    this.render();
+    $("editModal").close();
+    Sounds.add();
+    this.ui.toast("Transaction updated ✓");
+    this.cloud.sync({op:"delete", id: old.id});
+    this.cloud.sync({op:"add", expense: updated});
+    this.editingId = null;
   }
 
   /* ── initialisation ── */

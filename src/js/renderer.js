@@ -189,7 +189,8 @@ class Renderer {
       const c = catByKey(e.cat);
       return '<div class="txn" data-date="' + e.date + '"><span class="e">' + c.e + '</span><span class="t"><span class="n">' +
         esc(e.note||c.n) + '</span><span class="c">' + c.n + '</span></span><span class="a">' + fmt(e.amount) +
-        '</span><button class="x" data-del="' + e.id + '" aria-label="Delete">✕</button></div>';
+        '</span><button class="edit-btn" data-edit="' + e.id + '" aria-label="Edit">✎</button>' +
+      '<button class="x" data-del="' + e.id + '" aria-label="Delete">✕</button></div>';
     };
 
     let html = "";
@@ -230,7 +231,21 @@ class Renderer {
     ).join("");
   }
 
+  renderEditChips() {
+    const el = $("editCatChips"); if (!el) return;
+    el.innerHTML = CATS.map(c =>
+      '<span class="chip' + (c.k === this.app.editSelCat ? " on" : "") + '" data-ecat="' + c.k + '" role="button" tabindex="0">' +
+      c.e + " " + c.n + '</span>'
+    ).join("");
+  }
+
   wire() {
+    /* Edit category chip click */
+    $("editCatChips").addEventListener("click", e => {
+      const t = e.target.closest("[data-ecat]"); if (!t) return;
+      this.app.editSelCat = t.dataset.ecat; Sounds.chip(); this.renderEditChips();
+    });
+
     /* Category chip click / keyboard */
     $("catChips").addEventListener("click", e => {
       const t = e.target.closest(".chip"); if (!t) return;
@@ -290,6 +305,7 @@ class Renderer {
     });
     $("txnList").addEventListener("click", e => {
       if (e.target.closest("[data-del]")) return;
+      if (e.target.closest("[data-edit]")) return;
       const t = e.target.closest(".txn[data-date]"); if (!t) return;
       this._glowLedgerDay(+t.dataset.date.slice(8, 10));
     });

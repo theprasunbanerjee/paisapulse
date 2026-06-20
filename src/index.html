@@ -149,6 +149,7 @@
         </select>
         <select id="txnFilter" class="mini-select" title="Filter by category"></select>
         <label class="chk"><input type="checkbox" id="confirmDel"> confirm delete</label>
+        <button id="btnReport" style="padding:6px 12px;font-size:12px" title="Print monthly report">📊 Report</button>
       </span>
     </h2>
     <div id="txnList"></div>
@@ -207,6 +208,21 @@
 </dialog>
 
 <div id="toast"><span id="toastMsg"></span><button id="toastAct" hidden>Undo</button></div>
+
+<!-- Edit transaction modal -->
+<dialog id="editModal">
+  <div class="m-head"><h3>Edit transaction</h3><button class="btn-ghost" data-close>✕</button></div>
+  <div class="amt-row">
+    <div class="amt-in"><span>₹</span><input id="editAmt" inputmode="text" placeholder="0" autocomplete="off"></div>
+    <input type="date" id="editDate">
+  </div>
+  <div class="chips" id="editCatChips" style="margin-top:14px"></div>
+  <input id="editNote" class="field-gap" placeholder="What was it? (optional)" autocomplete="off" style="margin-top:10px">
+  <div class="m-row" style="margin-top:16px">
+    <button class="btn-glow" id="btnSaveEdit">Save changes</button>
+    <button data-close>Cancel</button>
+  </div>
+</dialog>
 
 <!-- Onboarding overlay -->
 <div id="onboard" class="onboard" hidden>

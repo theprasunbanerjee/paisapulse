@@ -182,6 +182,168 @@ class UI {
     Store.set(KEY_META, JSON.stringify(this.app.meta));
   }
 
+  /* ── monthly report ── */
+
+  printReport() {
+    const a = this.app;
+    const D = a.renderer.monthData(a.view.y, a.view.m);
+    if (!D.list.length) { this.toast("No expenses in " + MONTHS[a.view.m] + " to report"); return; }
+    const Pm = a.view.m === 0 ? 11 : a.view.m - 1;
+    const Py = a.view.m === 0 ? a.view.y - 1 : a.view.y;
+    const P  = a.renderer.monthData(Py, Pm);
+    const month = MONTHS[a.view.m] + " " + a.view.y;
+    const B = a.budgets.overall;
+    const diff = P.spent > 0 ? D.spent - P.spent : null;
+    const txnCount = D.list.length;
+    const avgTxn   = txnCount > 0 ? D.spent / txnCount : 0;
+    const perDay   = D.perDay.slice(1);
+    const daysWithSpend = perDay.filter(v => v > 0).length;
+    const maxDaySpend   = Math.max(...perDay);
+    const maxDayIdx     = D.perDay.indexOf(maxDaySpend, 1);
+    const maxDayStr     = maxDayIdx > 0 ? new Date(D.y, D.m, maxDayIdx).toLocaleDateString("en-IN", {weekday:"short", day:"numeric", month:"short"}) : null;
+
+    const catRows = CATS
+      .map(c => ({c, sp: D.byCat[c.k] || 0, b: a.budgets.cats[c.k] || null}))
+      .filter(r => r.sp > 0).sort((x, y) => y.sp - x.sp);
+    const maxSp = catRows.length ? catRows[0].sp : 1;
+
+    const catHTML = catRows.map(({c, sp, b}) => {
+      const pct = Math.round(sp / D.spent * 100);
+      const cls = b ? (sp > b ? "over" : sp > b * 0.8 ? "warn" : "") : "";
+      return `<div class="rcat">
+        <div class="rcat-top"><span class="re">${c.e}</span><span class="rcat-name">${c.n}</span>
+        <span class="rcat-pct">${pct}%</span>
+        <span class="rcat-amt">${fmt(sp)}${b ? '<span class="rbud"> / ' + fmt(b) + '</span>' : ''}</span></div>
+        <div class="rbar-wrap"><div class="rbar ${cls}" style="width:${Math.round(sp/maxSp*100)}%"></div></div>
+      </div>`;
+    }).join("");
+
+    const byDate = {};
+    for (const e of [...D.list].sort((x,y) => x.date < y.date ? 1 : -1))
+      (byDate[e.date] = byDate[e.date] || []).push(e);
+    const txnHTML = Object.entries(byDate).map(([dt, items]) => {
+      const total = items.reduce((s, e) => s + e.amount, 0);
+      const d = new Date(dt + "T00:00:00");
+      return `<div class="rday"><div class="rday-h"><span>${d.toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})}</span><b>${fmt(total)}</b></div>` +
+        items.map(e => { const c = catByKey(e.cat); return `<div class="rtxn"><span class="re">${c.e}</span><span class="rtxn-n">${esc(e.note||c.n)}</span><span class="rtxn-c">${c.n}</span><span class="rtxn-a">${fmt(e.amount)}</span></div>`; }).join("") +
+        `</div>`;
+    }).join("");
+
+    const ins = [];
+    if (maxDayStr && maxDaySpend > 0) ins.push({l:"Biggest Day", v: maxDayStr + " · " + fmt(maxDaySpend), cls:""});
+    ins.push({l:"Active Days", v: daysWithSpend + " of " + D.elapsed + " days", cls:""});
+    ins.push({l:"Avg per Transaction", v: fmt(avgTxn), cls:""});
+    if (catRows[0]) ins.push({l:"Top Category", v: catRows[0].c.e + " " + catRows[0].c.n + " · " + Math.round(catRows[0].sp/D.spent*100) + "%", cls:""});
+    if (diff !== null) ins.push({l:"vs " + MONTHS[Pm].slice(0,3), v:(diff<=0?"▼ Saved ":"▲ Spent ")+fmt(Math.abs(diff))+(diff>0?" more":""), cls:diff<=0?"good":"bad"});
+    if (D.isCur) ins.push({l:"Month-End Projection", v: fmt(D.proj), cls:""});
+    if (B) ins.push({l:"Budget Used", v: Math.round(D.spent/B*100)+"% of "+fmt(B), cls: D.spent>B?"bad":""});
+    const insHTML = ins.map(i => `<div class="ri"><div class="ri-l">${i.l}</div><div class="ri-v ${i.cls}">${i.v}</div></div>`).join("");
+
+    const kpis = [
+      {l:"Total Spent", v:fmt(D.spent), sub: diff!==null?(diff<=0?"▼ ":"▲ ")+fmt(Math.abs(diff))+" vs "+MONTHS[Pm].slice(0,3):"", cls:diff!==null?(diff<=0?"good":"bad"):""},
+      {l:"Transactions", v:String(txnCount), sub:"avg "+fmt(avgTxn)+" each", cls:""},
+      {l:"Daily Average", v:fmt(D.avg), sub:"over "+D.elapsed+" days", cls:""},
+      ...(B?[{l:"vs Budget", v:fmt(Math.abs(B-D.spent)), sub:D.spent>B?"⛔ Over budget":"✓ Under budget", cls:D.spent>B?"bad":"good"}]:[])
+    ];
+    const kpiHTML = kpis.map(k=>`<div class="rkpi"><div class="rkpi-l">${k.l}</div><div class="rkpi-v">${k.v}</div><div class="rkpi-sub ${k.cls}">${k.sub}</div></div>`).join("");
+    const genDate = new Date().toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric"});
+
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PaisaPulse — ${month} Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;900&family=Manrope:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#080611;color:rgba(245,240,255,.94);font-family:'Manrope',system-ui,sans-serif;font-size:14px;line-height:1.6}
+.report{max-width:860px;margin:0 auto;padding:44px 28px 100px}
+.r-hd{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:36px;padding-bottom:24px;border-bottom:1px solid rgba(255,255,255,.09)}
+.r-brand{display:flex;align-items:center;gap:14px}
+.r-logo{width:44px;height:44px;border-radius:12px;background:rgba(176,107,255,.15);border:1px solid rgba(176,107,255,.28);display:flex;align-items:center;justify-content:center;font-size:22px}
+.r-bname{font-family:'Unbounded',sans-serif;font-weight:900;font-size:17px;background:linear-gradient(100deg,#b06bff,#f472b6 60%,#fcd34d);-webkit-background-clip:text;background-clip:text;color:transparent}
+.r-bsub{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(245,240,255,.36);margin-top:2px}
+.r-right{text-align:right}
+.r-month{font-family:'Unbounded',sans-serif;font-weight:700;font-size:19px}
+.r-gen{font-size:11px;color:rgba(245,240,255,.32);margin-top:4px}
+.rkpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin-bottom:34px}
+.rkpi{background:linear-gradient(165deg,rgba(255,255,255,.065),rgba(255,255,255,.022));border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:16px}
+.rkpi-l{font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:rgba(245,240,255,.36);margin-bottom:5px}
+.rkpi-v{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:22px}
+.rkpi-sub{font-size:11.5px;font-weight:600;color:rgba(245,240,255,.44);margin-top:3px}
+.rkpi-sub.good{color:#b06bff}.rkpi-sub.bad{color:#fb6f92}
+h2{font-family:'Unbounded',sans-serif;font-weight:700;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(245,240,255,.38);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.07)}
+.rsec{margin-bottom:36px}
+.rcat{margin-bottom:14px}
+.rcat-top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.re{flex:none;font-size:15px}
+.rcat-name{flex:1;font-weight:700;font-size:13px}
+.rcat-pct{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:rgba(245,240,255,.44);min-width:36px;text-align:right}
+.rcat-amt{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;min-width:90px;text-align:right}
+.rbud{color:rgba(245,240,255,.34);font-size:11px}
+.rbar-wrap{height:6px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden}
+.rbar{height:100%;border-radius:99px;background:linear-gradient(90deg,#b06bff,#f472b6)}
+.rbar.warn{background:linear-gradient(90deg,#fbbf24,#fb923c)}
+.rbar.over{background:linear-gradient(90deg,#fb6f92,#f43f5e)}
+.ri-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.ri{padding:12px 14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);border-radius:12px}
+.ri-l{font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:rgba(245,240,255,.36);margin-bottom:4px}
+.ri-v{font-weight:700;font-size:13px}
+.ri-v.good{color:#b06bff}.ri-v.bad{color:#fb6f92}
+.rday{margin-bottom:4px}
+.rday-h{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0 5px;font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:rgba(245,240,255,.36);border-bottom:1px solid rgba(255,255,255,.06)}
+.rday-h b{font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(245,240,255,.52);letter-spacing:0;text-transform:none;font-weight:700}
+.rtxn{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,.04)}
+.rtxn:last-child{border-bottom:none}
+.rtxn-n{flex:1;font-weight:700;font-size:13px}
+.rtxn-c{font-size:11px;color:rgba(245,240,255,.36);font-weight:600;min-width:130px}
+.rtxn-a{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;min-width:80px;text-align:right}
+.r-footer{margin-top:40px;text-align:center;font-size:11px;color:rgba(245,240,255,.22);font-weight:600;letter-spacing:.5px;padding-top:20px;border-top:1px solid rgba(255,255,255,.06)}
+.r-printbtn{position:fixed;bottom:24px;right:24px;background:linear-gradient(120deg,#b06bff,#f472b6);color:#04140d;font-family:'Manrope',sans-serif;font-weight:800;font-size:13px;border:none;border-radius:12px;padding:12px 22px;cursor:pointer;box-shadow:0 0 24px rgba(176,107,255,.45);letter-spacing:.3px}
+@media print{
+  body{background:#fff;color:#0a0a0a}
+  .report{padding:0}
+  .r-hd{border-color:#e0e0e0}
+  .r-bname{background:none;-webkit-background-clip:unset;background-clip:unset;color:#6d28d9}
+  .r-bsub,.r-gen{color:#999}
+  .r-month{color:#0a0a0a}
+  .rkpi{background:none;border:1px solid #e5e5e5}
+  .rkpi-l,.r-right .r-gen{color:#888}
+  .rkpi-v{color:#0a0a0a}
+  .rkpi-sub{color:#777}
+  .rkpi-sub.good{color:#7c3aed}.rkpi-sub.bad{color:#dc2626}
+  h2{color:#999;border-color:#e5e5e5}
+  .rcat-name{color:#0a0a0a}.rcat-pct,.rbud{color:#888}.rcat-amt{color:#0a0a0a}
+  .rbar-wrap{background:#f0f0f0}
+  .ri{background:#f9f9f9;border-color:#eee}
+  .ri-l{color:#888}.ri-v{color:#0a0a0a}
+  .ri-v.good{color:#7c3aed}.ri-v.bad{color:#dc2626}
+  .rday-h{color:#888;border-color:#eee}.rday-h b{color:#555}
+  .rtxn{border-color:#f0f0f0}.rtxn-n{color:#0a0a0a}.rtxn-c{color:#888}.rtxn-a{color:#0a0a0a}
+  .r-printbtn{display:none}
+  .r-footer{color:#bbb;border-color:#eee}
+  .rsec{break-inside:avoid}
+}
+</style></head><body>
+<div class="report">
+  <div class="r-hd">
+    <div class="r-brand"><div class="r-logo">₹</div><div><div class="r-bname">PaisaPulse</div><div class="r-bsub">Monthly Expense Report</div></div></div>
+    <div class="r-right"><div class="r-month">${month}</div><div class="r-gen">Generated ${genDate}</div></div>
+  </div>
+  <div class="rkpis">${kpiHTML}</div>
+  <div class="rsec"><h2>Category Breakdown</h2>${catHTML}</div>
+  <div class="rsec"><h2>Spending Insights</h2><div class="ri-grid">${insHTML}</div></div>
+  <div class="rsec"><h2>Transactions · ${txnCount} entries</h2>${txnHTML}</div>
+  <div class="r-footer">PaisaPulse · ${genDate}</div>
+</div>
+<button class="r-printbtn" onclick="window.print()">🖨 Print / Save PDF</button>
+</body></html>`;
+
+    const w = window.open("", "_blank");
+    if (!w) { this.toast("Allow pop-ups for this page to open the report"); return; }
+    w.document.write(html);
+    w.document.close();
+  }
+
   /* ── event wiring ── */
 
   wire() {
@@ -192,6 +354,12 @@ class UI {
 
     /* add expense */
     $("btnAdd").addEventListener("click", () => a.addExpense());
+
+    /* edit */
+    $("txnList").addEventListener("click", e => {
+      const eb = e.target.closest("[data-edit]"); if (!eb) return;
+      a.editTxn(eb.dataset.edit);
+    });
 
     /* delete */
     $("txnList").addEventListener("click", e => {
@@ -314,6 +482,13 @@ class UI {
       a.cloud.sync({op:"budgets", budgets:a.budgets});
       this.toast("Budgets saved" + (a.cloudUrl ? " · saving…" : " ✓"));
     });
+
+    /* edit modal save */
+    $("btnSaveEdit").addEventListener("click", () => a.saveEdit());
+    $("editAmt").addEventListener("keydown", e => { if (e.key === "Enter") a.saveEdit(); });
+
+    /* monthly report */
+    $("btnReport").addEventListener("click", () => this.printReport());
 
     /* greeting name edit */
     $("greetEdit").addEventListener("click", () => this.startNameEdit());
