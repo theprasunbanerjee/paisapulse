@@ -857,9 +857,11 @@ select option{background:#0d0a1a;color:rgba(245,240,255,.94)}
 
 <!-- Apps Script source (non-executing template — shown/copied during onboarding) -->
 <script type="text/plain" id="ppScriptSrc">/*** PaisaPulse — Google Apps Script backend (bind this to your Sheet) ***/
-var SHEET_EXP = 'Expenses';
-var SHEET_BUD = 'Budgets';
-var HEADERS   = ['ID','Date','Category','Note','Amount','CreatedAt'];
+var SHEET_EXP   = 'Expenses';
+var SHEET_BUD   = 'Budgets';
+var SHEET_CARDS = 'Cards';
+var HEADERS      = ['ID','Date','Category','Note','Amount','CreatedAt','Type','CardId'];
+var CARD_HEADERS = ['ID','Name','StatementDay','DueDay'];
 
 function doGet(e){
   return json(readAll());
@@ -873,8 +875,10 @@ function doPost(e){
     switch (body.action) {
       case 'ping':    return json({ok:true});
       case 'add':     addRow(body.expense);                                  return json({ok:true});
+      case 'update':  updateRow(body.expense);                               return json({ok:true});
       case 'delete':  return json({ok:true, deleted: deleteRow(body.id)});
       case 'budgets': writeBudgets(body.budgets || {});                      return json({ok:true});
+      case 'cards':   writeCards(body.cards || []);                          return json({ok:true});
       case 'import':  return json(merge({ok:true}, importRows(body.expenses || [], body.replace === true)));
       default:        return json({ok:false, error:'unknown action'});
     }
@@ -894,6 +898,13 @@ function expSheet(){
     sh.getRange(1,1,1,HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
     sh.getRange('B:B').setNumberFormat('@');
     sh.setFrozenRows(1);
+  } else {
+    // Migrate an older 6-column sheet in place: add Type / CardId header cells.
+    // Existing data rows are never modified — their Type/CardId simply read as ''.
+    var hdr = sh.getRange(1,1,1,HEADERS.length).getValues()[0];
+    if (hdr[6] !== 'Type' || hdr[7] !== 'CardId') {
+      sh.getRange(1,1,1,HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
+    }
   }
   return sh;
 }
@@ -905,6 +916,13 @@ function budSheet(){
   return sh;
 }
 
+function cardsSheet(){
+  var s = ss(), sh = s.getSheetByName(SHEET_CARDS);
+  if (!sh) sh = s.insertSheet(SHEET_CARDS);
+  if (sh.getLastRow() === 0) sh.getRange(1,1,1,CARD_HEADERS.length).setValues([CARD_HEADERS]).setFontWeight('bold');
+  return sh;
+}
+
 function readAll(){
   var sh = expSheet(), last = sh.getLastRow(), expenses = [];
   if (last > 1) {
@@ -913,10 +931,16 @@ function readAll(){
       var r = vals[i];
       if (r[0]==='' && r[1]==='' && r[4]==='') continue;
       expenses.push({ id: String(r[0]), date: fmtDate(r[1]), cat: String(r[2]),
-        note: String(r[3]), amount: Number(r[4]) || 0, createdAt: r[5] ? String(r[5]) : '' });
+        note: String(r[3]), amount: Number(r[4]) || 0, createdAt: r[5] ? String(r[5]) : '',
+        type: r[6] ? String(r[6]) : 'normal', cardId: r[7] ? String(r[7]) : '' });
     }
   }
-  return {ok:true, expenses: expenses, budgets: readBudgets()};
+  var sp = ss(), folderUrl = '';
+  try {
+    var parents = DriveApp.getFileById(sp.getId()).getParents();
+    folderUrl = parents.hasNext() ? parents.next().getUrl() : '';
+  } catch(e) {}
+  return {ok:true, expenses: expenses, budgets: readBudgets(), cards: readCards(), folderUrl: folderUrl, sheetUrl: sp.getUrl()};
 }
 
 function readBudgets(){
@@ -932,12 +956,34 @@ function readBudgets(){
   return out;
 }
 
+function readCards(){
+  var sh = cardsSheet(), last = sh.getLastRow(), out = [];
+  if (last > 1) {
+    var vals = sh.getRange(2,1,last-1,CARD_HEADERS.length).getValues();
+    for (var i=0;i<vals.length;i++){
+      var r = vals[i];
+      if (!r[0] && !r[1]) continue;
+      out.push({ id:String(r[0]), name:String(r[1]), statementDay:Number(r[2])||1, dueDay:Number(r[3])||1 });
+    }
+  }
+  return out;
+}
+
 function addRow(exp){
   if (!exp) return;
   var sh = expSheet();
   if (exp.id && findRowById(sh, exp.id) > 0) return;
   sh.appendRow([ exp.id || '', fmtDate(exp.date), exp.cat || '', exp.note || '',
-                 Number(exp.amount) || 0, exp.createdAt || new Date().toISOString() ]);
+                 Number(exp.amount) || 0, exp.createdAt || new Date().toISOString(),
+                 exp.type || 'normal', exp.cardId || '' ]);
+}
+
+function updateRow(exp){
+  if (!exp || !exp.id) return;
+  var sh = expSheet(), row = findRowById(sh, exp.id);
+  if (row < 2) { addRow(exp); return; }
+  sh.getRange(row, 1, 1, HEADERS.length).setValues([[ exp.id, fmtDate(exp.date), exp.cat || '', exp.note || '',
+    Number(exp.amount) || 0, exp.createdAt || new Date().toISOString(), exp.type || 'normal', exp.cardId || '' ]]);
 }
 
 function deleteRow(id){
@@ -957,7 +1003,8 @@ function importRows(rows, replace){
   var out = [], added = 0, skipped = 0;
   for (var j=0;j<rows.length;j++){
     var e = rows[j], row = [ e.id||'', fmtDate(e.date), e.cat||'', e.note||'',
-                             Number(e.amount)||0, e.createdAt || new Date().toISOString() ];
+                             Number(e.amount)||0, e.createdAt || new Date().toISOString(),
+                             e.type || 'normal', e.cardId || '' ];
     if (seen['id:'+String(e.id)] || seen[sig(row)]) { skipped++; continue; }
     seen['id:'+String(e.id)] = true; seen[sig(row)] = true;
     out.push(row); added++;
@@ -974,6 +1021,18 @@ function writeBudgets(b){
   var cats = b.cats || {};
   for (var k in cats) if (cats.hasOwnProperty(k)) rows.push([k, Number(cats[k]) || 0]);
   if (rows.length) sh.getRange(2,1,rows.length,2).setValues(rows);
+}
+
+function writeCards(cards){
+  var sh = cardsSheet(), last = sh.getLastRow();
+  if (last > 1) sh.deleteRows(2, last-1);
+  var rows = [];
+  for (var i=0;i<cards.length;i++){
+    var c = cards[i] || {};
+    if (!c.id && !c.name) continue;
+    rows.push([ c.id||'', c.name||'', Number(c.statementDay)||1, Number(c.dueDay)||1 ]);
+  }
+  if (rows.length) sh.getRange(2,1,rows.length,CARD_HEADERS.length).setValues(rows);
 }
 
 function findRowById(sh, id){
@@ -1370,8 +1429,8 @@ const catKeyFromName = n => {
   return hit ? hit.k : Calculator.matchCat(n);
 };
 const catNameFromKey = k => catByKey(k).n;
-const expToRow = e => ({ id:e.id, date:e.date, cat:catNameFromKey(e.cat), note:e.note||"", amount:e.amount, createdAt:e.createdAt||new Date().toISOString() });
-const rowToExp = r => ({ id:r.id||uid(), date:Calculator.parseDate(r.date)||String(r.date||""), amount:+r.amount||0, cat:catKeyFromName(r.cat), note:r.note||"", createdAt:r.createdAt||"" });
+const expToRow = e => ({ id:e.id, date:e.date, cat:catNameFromKey(e.cat), note:e.note||"", amount:e.amount, createdAt:e.createdAt||new Date().toISOString(), type:e.type||TX_NORMAL, cardId:e.cardId||"" });
+const rowToExp = r => ({ id:r.id||uid(), date:Calculator.parseDate(r.date)||String(r.date||""), amount:+r.amount||0, cat:catKeyFromName(r.cat), note:r.note||"", createdAt:r.createdAt||"", type:(r.type===TX_CREDIT||r.type===TX_PAYMENT)?r.type:TX_NORMAL, cardId:r.cardId||null });
 
 class CloudSync {
   constructor(app) {
@@ -1412,10 +1471,23 @@ class CloudSync {
     if (j.budgets && typeof j.budgets === "object")
       this.app.budgets = {overall: j.budgets.overall||null, cats: j.budgets.cats||{}};
     this.app.sortExp();
-    this.app.applyTxnMeta();   // re-attach credit type/cardId (the Sheet doesn't store them)
+    this.app.applyTxnMeta();   // fallback for rows the Sheet hasn't healed yet (offline / pre-upgrade)
+    this.reconcileCards(j);
     Store.set(KEY_EXP, JSON.stringify(this.app.expenses));
     Store.set(KEY_BUD, JSON.stringify(this.app.budgets));
     if (j.folderUrl) try { localStorage.setItem(KEY_FOLDER, j.folderUrl); } catch(e) {}
+  }
+
+  /* Pull cards from the Sheet; if the Sheet has none yet but we have local cards,
+     push ours up (first-time upgrade heal). Never wipes local cards on an empty pull. */
+  reconcileCards(j) {
+    if (!Array.isArray(j.cards)) return;
+    if (j.cards.length) {
+      this.app.cards = j.cards.map(c => ({ id:String(c.id||uid()), name:String(c.name||"Card"), statementDay:+c.statementDay||1, dueDay:+c.dueDay||1 }));
+      try { localStorage.setItem(KEY_CARDS, JSON.stringify(this.app.cards)); } catch(e) {}
+    } else if (this.app.cards.length) {
+      this.sync({op:"cards", cards:this.app.cards});
+    }
   }
 
   async loadFromCloud() {
@@ -1436,8 +1508,10 @@ class CloudSync {
 
   opBody(op) {
     if (op.op === "add")     return {action:"add",     expense: expToRow(op.expense)};
+    if (op.op === "update")  return {action:"update",  expense: expToRow(op.expense)};
     if (op.op === "delete")  return {action:"delete",  id: op.id};
     if (op.op === "budgets") return {action:"budgets",  budgets: op.budgets};
+    if (op.op === "cards")   return {action:"cards",   cards: op.cards};
     if (op.op === "import")  return {action:"import",  expenses: op.expenses.map(expToRow)};
     if (op.op === "replace") return {action:"import",  replace:true, expenses: op.expenses.map(expToRow)};
   }
@@ -1497,11 +1571,14 @@ class CloudSync {
       const j    = await this.call(null);
       const rows = Array.isArray(j) ? j : (j.expenses || []);
       if (rows.length) {
-        this.applyData(j);                            // Sheet has data → pull, leave Sheet untouched
-      } else if (this.app.expenses.length) {          // Sheet empty → push local data up (append, deduped)
-        this.sync({op:"import", expenses: this.app.expenses});
-        if (this.app.budgets.overall || Object.keys(this.app.budgets.cats).length)
-          this.sync({op:"budgets", budgets: this.app.budgets});
+        this.applyData(j);                            // Sheet has data → pull (also reconciles cards)
+      } else {                                        // Sheet empty → push local data up (append, deduped)
+        if (this.app.expenses.length) {
+          this.sync({op:"import", expenses: this.app.expenses});
+          if (this.app.budgets.overall || Object.keys(this.app.budgets.cats).length)
+            this.sync({op:"budgets", budgets: this.app.budgets});
+        }
+        this.reconcileCards(j);                       // push local cards up if Sheet has none
       }
       this.app.render(); this.setSync(this.app.outbox.length ? "saving" : "saved");
     } catch(e) { console.error("first sync failed", e); this.setSync("error"); }
@@ -2478,6 +2555,7 @@ class UI {
     try { localStorage.setItem(KEY_URL, url); } catch(e) {}
     v.className = "ob-verify ok"; v.textContent = "✓ Connected! Syncing your Sheet…";
     await this.app.cloud.firstSync();
+    this.app.healCredit();
     this._dismissSeedBanner();
     this.closeOnboard(); this.app.cloud.updateConnUI(); this.toast("Google Drive connected ✓"); Sounds.success();
   }
@@ -2945,8 +3023,20 @@ class PaisaPulse {
     }
     try { localStorage.setItem(KEY_TXN_META, JSON.stringify(m)); } catch(e) {}
   }
-  saveCards() { try { localStorage.setItem(KEY_CARDS, JSON.stringify(this.cards)); } catch(e) {} }
+  saveCards() {
+    try { localStorage.setItem(KEY_CARDS, JSON.stringify(this.cards)); } catch(e) {}
+    if (this.cloudUrl) this.cloud.sync({op:"cards", cards:this.cards});   // mirror cards to the Sheet
+  }
   cardById(id) { return this.cards.find(c => c.id === id) || null; }
+
+  /* One-time: push existing credit/payment rows up so the Sheet's Type/CardId
+     columns get backfilled (older rows were written before cloud knew types). */
+  healCredit() {
+    if (!this.cloudUrl || this.meta.creditHealed) return;
+    const rows = this.expenses.filter(e => e.type && e.type !== TX_NORMAL);
+    for (const e of rows) this.cloud.sync({op:"update", expense:e});
+    this.meta.creditHealed = true; this.persist();
+  }
 
   /* Re-attach type/cardId from the overlay onto whatever is in this.expenses.
      Local rows already carry them; cloud-pulled rows don't — this fixes those. */
@@ -3034,8 +3124,7 @@ class PaisaPulse {
     $("editModal").close();
     Sounds.add();
     this.ui.toast("Transaction updated ✓");
-    this.cloud.sync({op:"delete", id: old.id});
-    this.cloud.sync({op:"add", expense: updated});
+    this.cloud.sync({op:"update", expense: updated});
     this.editingId = null;
   }
 
@@ -3127,6 +3216,7 @@ class PaisaPulse {
       if (!this.expenses.length) document.body.classList.add("loading-cloud");
       await this.cloud.loadFromCloud();
       document.body.classList.remove("loading-cloud");
+      this.healCredit();
       this.render();
       this.cloud.flushOutbox();
     } else if (!this.meta.onboardSkipped) {

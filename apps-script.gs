@@ -10,14 +10,21 @@
    5. Deploy → authorize when asked → copy the Web app URL (ends in /exec).
    6. Paste that URL into PaisaPulse. Done — your Sheet is now your private database.
 
+   UPGRADING an existing Sheet? Just paste this newer version over the old one,
+   Save, then Deploy → Manage deployments → edit (pencil) → Version: New version →
+   Deploy. Your existing rows are never touched — this only ADDS a Type and CardId
+   column to Expenses and a new Cards tab.
+
    It is safe: the script only ever runs as YOU and only touches THIS Sheet.
    "Anyone" just means the URL is reachable without a Google login (so the app
    can talk to it) — it does NOT make your Sheet public or searchable.
 */
 
-var SHEET_EXP = 'Expenses';
-var SHEET_BUD = 'Budgets';
-var HEADERS   = ['ID','Date','Category','Note','Amount','CreatedAt'];
+var SHEET_EXP   = 'Expenses';
+var SHEET_BUD   = 'Budgets';
+var SHEET_CARDS = 'Cards';
+var HEADERS      = ['ID','Date','Category','Note','Amount','CreatedAt','Type','CardId'];
+var CARD_HEADERS = ['ID','Name','StatementDay','DueDay'];
 
 function doGet(e){
   return json(readAll());
@@ -31,8 +38,10 @@ function doPost(e){
     switch (body.action) {
       case 'ping':    return json({ok:true});
       case 'add':     addRow(body.expense);                                  return json({ok:true});
+      case 'update':  updateRow(body.expense);                               return json({ok:true});
       case 'delete':  return json({ok:true, deleted: deleteRow(body.id)});
       case 'budgets': writeBudgets(body.budgets || {});                      return json({ok:true});
+      case 'cards':   writeCards(body.cards || []);                          return json({ok:true});
       case 'import':  return json(merge({ok:true}, importRows(body.expenses || [], body.replace === true)));
       default:        return json({ok:false, error:'unknown action'});
     }
@@ -53,6 +62,13 @@ function expSheet(){
     sh.getRange(1,1,1,HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
     sh.getRange('B:B').setNumberFormat('@'); // keep dates as plain text (no timezone drift)
     sh.setFrozenRows(1);
+  } else {
+    // Migrate an older 6-column sheet in place: add the Type / CardId header cells.
+    // Existing data rows are never modified — their Type/CardId simply read as ''.
+    var hdr = sh.getRange(1,1,1,HEADERS.length).getValues()[0];
+    if (hdr[6] !== 'Type' || hdr[7] !== 'CardId') {
+      sh.getRange(1,1,1,HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
+    }
   }
   return sh;
 }
@@ -61,6 +77,13 @@ function budSheet(){
   var s = ss(), sh = s.getSheetByName(SHEET_BUD);
   if (!sh) sh = s.insertSheet(SHEET_BUD);
   if (sh.getLastRow() === 0) sh.getRange(1,1,1,2).setValues([['Key','Value']]).setFontWeight('bold');
+  return sh;
+}
+
+function cardsSheet(){
+  var s = ss(), sh = s.getSheetByName(SHEET_CARDS);
+  if (!sh) sh = s.insertSheet(SHEET_CARDS);
+  if (sh.getLastRow() === 0) sh.getRange(1,1,1,CARD_HEADERS.length).setValues([CARD_HEADERS]).setFontWeight('bold');
   return sh;
 }
 
@@ -75,7 +98,8 @@ function readAll(){
       expenses.push({
         id: String(r[0]), date: fmtDate(r[1]), cat: String(r[2]),
         note: String(r[3]), amount: Number(r[4]) || 0,
-        createdAt: r[5] ? String(r[5]) : ''
+        createdAt: r[5] ? String(r[5]) : '',
+        type: r[6] ? String(r[6]) : 'normal', cardId: r[7] ? String(r[7]) : ''
       });
     }
   }
@@ -84,7 +108,7 @@ function readAll(){
     var parents = DriveApp.getFileById(sp.getId()).getParents();
     folderUrl = parents.hasNext() ? parents.next().getUrl() : '';
   } catch(e) {}
-  return {ok:true, expenses: expenses, budgets: readBudgets(), folderUrl: folderUrl, sheetUrl: sp.getUrl()};
+  return {ok:true, expenses: expenses, budgets: readBudgets(), cards: readCards(), folderUrl: folderUrl, sheetUrl: sp.getUrl()};
 }
 
 function readBudgets(){
@@ -100,13 +124,37 @@ function readBudgets(){
   return out;
 }
 
+function readCards(){
+  var sh = cardsSheet(), last = sh.getLastRow(), out = [];
+  if (last > 1) {
+    var vals = sh.getRange(2,1,last-1,CARD_HEADERS.length).getValues();
+    for (var i=0;i<vals.length;i++){
+      var r = vals[i];
+      if (!r[0] && !r[1]) continue;
+      out.push({ id:String(r[0]), name:String(r[1]), statementDay:Number(r[2])||1, dueDay:Number(r[3])||1 });
+    }
+  }
+  return out;
+}
+
 /* ---------- writes ---------- */
 function addRow(exp){
   if (!exp) return;
   var sh = expSheet();
   if (exp.id && findRowById(sh, exp.id) > 0) return; // idempotent — safe to retry
   sh.appendRow([ exp.id || '', fmtDate(exp.date), exp.cat || '', exp.note || '',
-                 Number(exp.amount) || 0, exp.createdAt || new Date().toISOString() ]);
+                 Number(exp.amount) || 0, exp.createdAt || new Date().toISOString(),
+                 exp.type || 'normal', exp.cardId || '' ]);
+}
+
+function updateRow(exp){
+  if (!exp || !exp.id) return;
+  var sh = expSheet(), row = findRowById(sh, exp.id);
+  if (row < 2) { addRow(exp); return; }   // not found → just add it
+  sh.getRange(row, 1, 1, HEADERS.length).setValues([[
+    exp.id, fmtDate(exp.date), exp.cat || '', exp.note || '',
+    Number(exp.amount) || 0, exp.createdAt || new Date().toISOString(),
+    exp.type || 'normal', exp.cardId || '' ]]);
 }
 
 function deleteRow(id){
@@ -126,7 +174,8 @@ function importRows(rows, replace){
   var out = [], added = 0, skipped = 0;
   for (var j=0;j<rows.length;j++){
     var e = rows[j], row = [ e.id||'', fmtDate(e.date), e.cat||'', e.note||'',
-                             Number(e.amount)||0, e.createdAt || new Date().toISOString() ];
+                             Number(e.amount)||0, e.createdAt || new Date().toISOString(),
+                             e.type || 'normal', e.cardId || '' ];
     if (seen['id:'+String(e.id)] || seen[sig(row)]) { skipped++; continue; }
     seen['id:'+String(e.id)] = true; seen[sig(row)] = true;
     out.push(row); added++;
@@ -143,6 +192,18 @@ function writeBudgets(b){
   var cats = b.cats || {};
   for (var k in cats) if (cats.hasOwnProperty(k)) rows.push([k, Number(cats[k]) || 0]);
   if (rows.length) sh.getRange(2,1,rows.length,2).setValues(rows);
+}
+
+function writeCards(cards){
+  var sh = cardsSheet(), last = sh.getLastRow();
+  if (last > 1) sh.deleteRows(2, last-1);
+  var rows = [];
+  for (var i=0;i<cards.length;i++){
+    var c = cards[i] || {};
+    if (!c.id && !c.name) continue;
+    rows.push([ c.id||'', c.name||'', Number(c.statementDay)||1, Number(c.dueDay)||1 ]);
+  }
+  if (rows.length) sh.getRange(2,1,rows.length,CARD_HEADERS.length).setValues(rows);
 }
 
 /* ---------- helpers ---------- */

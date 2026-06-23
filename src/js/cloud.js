@@ -7,8 +7,8 @@ const catKeyFromName = n => {
   return hit ? hit.k : Calculator.matchCat(n);
 };
 const catNameFromKey = k => catByKey(k).n;
-const expToRow = e => ({ id:e.id, date:e.date, cat:catNameFromKey(e.cat), note:e.note||"", amount:e.amount, createdAt:e.createdAt||new Date().toISOString() });
-const rowToExp = r => ({ id:r.id||uid(), date:Calculator.parseDate(r.date)||String(r.date||""), amount:+r.amount||0, cat:catKeyFromName(r.cat), note:r.note||"", createdAt:r.createdAt||"" });
+const expToRow = e => ({ id:e.id, date:e.date, cat:catNameFromKey(e.cat), note:e.note||"", amount:e.amount, createdAt:e.createdAt||new Date().toISOString(), type:e.type||TX_NORMAL, cardId:e.cardId||"" });
+const rowToExp = r => ({ id:r.id||uid(), date:Calculator.parseDate(r.date)||String(r.date||""), amount:+r.amount||0, cat:catKeyFromName(r.cat), note:r.note||"", createdAt:r.createdAt||"", type:(r.type===TX_CREDIT||r.type===TX_PAYMENT)?r.type:TX_NORMAL, cardId:r.cardId||null });
 
 class CloudSync {
   constructor(app) {
@@ -49,10 +49,23 @@ class CloudSync {
     if (j.budgets && typeof j.budgets === "object")
       this.app.budgets = {overall: j.budgets.overall||null, cats: j.budgets.cats||{}};
     this.app.sortExp();
-    this.app.applyTxnMeta();   // re-attach credit type/cardId (the Sheet doesn't store them)
+    this.app.applyTxnMeta();   // fallback for rows the Sheet hasn't healed yet (offline / pre-upgrade)
+    this.reconcileCards(j);
     Store.set(KEY_EXP, JSON.stringify(this.app.expenses));
     Store.set(KEY_BUD, JSON.stringify(this.app.budgets));
     if (j.folderUrl) try { localStorage.setItem(KEY_FOLDER, j.folderUrl); } catch(e) {}
+  }
+
+  /* Pull cards from the Sheet; if the Sheet has none yet but we have local cards,
+     push ours up (first-time upgrade heal). Never wipes local cards on an empty pull. */
+  reconcileCards(j) {
+    if (!Array.isArray(j.cards)) return;
+    if (j.cards.length) {
+      this.app.cards = j.cards.map(c => ({ id:String(c.id||uid()), name:String(c.name||"Card"), statementDay:+c.statementDay||1, dueDay:+c.dueDay||1 }));
+      try { localStorage.setItem(KEY_CARDS, JSON.stringify(this.app.cards)); } catch(e) {}
+    } else if (this.app.cards.length) {
+      this.sync({op:"cards", cards:this.app.cards});
+    }
   }
 
   async loadFromCloud() {
@@ -73,8 +86,10 @@ class CloudSync {
 
   opBody(op) {
     if (op.op === "add")     return {action:"add",     expense: expToRow(op.expense)};
+    if (op.op === "update")  return {action:"update",  expense: expToRow(op.expense)};
     if (op.op === "delete")  return {action:"delete",  id: op.id};
     if (op.op === "budgets") return {action:"budgets",  budgets: op.budgets};
+    if (op.op === "cards")   return {action:"cards",   cards: op.cards};
     if (op.op === "import")  return {action:"import",  expenses: op.expenses.map(expToRow)};
     if (op.op === "replace") return {action:"import",  replace:true, expenses: op.expenses.map(expToRow)};
   }
@@ -134,11 +149,14 @@ class CloudSync {
       const j    = await this.call(null);
       const rows = Array.isArray(j) ? j : (j.expenses || []);
       if (rows.length) {
-        this.applyData(j);                            // Sheet has data → pull, leave Sheet untouched
-      } else if (this.app.expenses.length) {          // Sheet empty → push local data up (append, deduped)
-        this.sync({op:"import", expenses: this.app.expenses});
-        if (this.app.budgets.overall || Object.keys(this.app.budgets.cats).length)
-          this.sync({op:"budgets", budgets: this.app.budgets});
+        this.applyData(j);                            // Sheet has data → pull (also reconciles cards)
+      } else {                                        // Sheet empty → push local data up (append, deduped)
+        if (this.app.expenses.length) {
+          this.sync({op:"import", expenses: this.app.expenses});
+          if (this.app.budgets.overall || Object.keys(this.app.budgets.cats).length)
+            this.sync({op:"budgets", budgets: this.app.budgets});
+        }
+        this.reconcileCards(j);                       // push local cards up if Sheet has none
       }
       this.app.render(); this.setSync(this.app.outbox.length ? "saving" : "saved");
     } catch(e) { console.error("first sync failed", e); this.setSync("error"); }

@@ -50,8 +50,20 @@ class PaisaPulse {
     }
     try { localStorage.setItem(KEY_TXN_META, JSON.stringify(m)); } catch(e) {}
   }
-  saveCards() { try { localStorage.setItem(KEY_CARDS, JSON.stringify(this.cards)); } catch(e) {} }
+  saveCards() {
+    try { localStorage.setItem(KEY_CARDS, JSON.stringify(this.cards)); } catch(e) {}
+    if (this.cloudUrl) this.cloud.sync({op:"cards", cards:this.cards});   // mirror cards to the Sheet
+  }
   cardById(id) { return this.cards.find(c => c.id === id) || null; }
+
+  /* One-time: push existing credit/payment rows up so the Sheet's Type/CardId
+     columns get backfilled (older rows were written before cloud knew types). */
+  healCredit() {
+    if (!this.cloudUrl || this.meta.creditHealed) return;
+    const rows = this.expenses.filter(e => e.type && e.type !== TX_NORMAL);
+    for (const e of rows) this.cloud.sync({op:"update", expense:e});
+    this.meta.creditHealed = true; this.persist();
+  }
 
   /* Re-attach type/cardId from the overlay onto whatever is in this.expenses.
      Local rows already carry them; cloud-pulled rows don't — this fixes those. */
@@ -139,8 +151,7 @@ class PaisaPulse {
     $("editModal").close();
     Sounds.add();
     this.ui.toast("Transaction updated ✓");
-    this.cloud.sync({op:"delete", id: old.id});
-    this.cloud.sync({op:"add", expense: updated});
+    this.cloud.sync({op:"update", expense: updated});
     this.editingId = null;
   }
 
@@ -232,6 +243,7 @@ class PaisaPulse {
       if (!this.expenses.length) document.body.classList.add("loading-cloud");
       await this.cloud.loadFromCloud();
       document.body.classList.remove("loading-cloud");
+      this.healCredit();
       this.render();
       this.cloud.flushOutbox();
     } else if (!this.meta.onboardSkipped) {

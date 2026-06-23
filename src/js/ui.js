@@ -199,6 +199,7 @@ class UI {
     try { localStorage.setItem(KEY_URL, url); } catch(e) {}
     v.className = "ob-verify ok"; v.textContent = "✓ Connected! Syncing your Sheet…";
     await this.app.cloud.firstSync();
+    this.app.healCredit();
     this._dismissSeedBanner();
     this.closeOnboard(); this.app.cloud.updateConnUI(); this.toast("Google Drive connected ✓"); Sounds.success();
   }
