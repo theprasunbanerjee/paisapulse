@@ -447,3 +447,54 @@ select option{background:#0d0a1a;color:rgba(245,240,255,.94)}
 .txn .edit-btn:hover{opacity:1!important;background:rgba(176,107,255,.12)}
 #editCatChips .chip .k{display:none}
 #editCatChips{max-height:200px;overflow-y:auto}
+
+/* ---------- CREDIT: paywith control ---------- */
+.paywith-row{display:flex;align-items:center;gap:12px;margin:4px 0 2px;flex-wrap:wrap}
+.paywith-lbl{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-faint)}
+.paywith{display:inline-flex;background:var(--glass);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px}
+.pw-btn{font-size:12px;font-weight:700;padding:6px 13px;border-radius:8px;border:none;background:transparent;color:var(--ink-dim)}
+.pw-btn:hover{background:var(--glass-hi);transform:none}
+.pw-btn.on{background:linear-gradient(120deg,var(--pulse),var(--ice));color:#1a0b2e}
+.card-select{margin-top:10px;font-size:13px;color:var(--ink);color-scheme:dark}
+
+/* ---------- CREDIT: txn badges ---------- */
+.txn .credit-badge,.txn .pay-badge{display:inline-block;font-family:var(--body);font-size:10px;font-weight:800;
+  padding:1px 7px;border-radius:99px;margin-left:6px;vertical-align:1px;letter-spacing:.2px}
+.txn .credit-badge{color:var(--lilac);background:rgba(176,107,255,.14);border:1px solid rgba(176,107,255,.3)}
+.txn .pay-badge{color:#5eead4;background:rgba(94,234,212,.12);border:1px solid rgba(94,234,212,.28)}
+.txn.is-payment .a{color:#5eead4}
+.txn.is-payment .e{background:rgba(94,234,212,.1);border-color:rgba(94,234,212,.25)}
+
+/* ---------- CREDIT: cards & credit section ---------- */
+.credit-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:6px 0 18px}
+.credit-stat{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.credit-stat .lbl{font-size:10.5px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:var(--ink-faint)}
+.credit-stat .val{font-family:var(--mono);font-weight:800;font-size:24px;margin-top:5px;font-variant-numeric:tabular-nums}
+.credit-stat .sub{font-size:11.5px;color:var(--ink-dim);margin-top:3px;font-weight:600}
+.shock-head{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:10px}
+.shock-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;margin-bottom:8px;
+  background:linear-gradient(165deg,rgba(255,255,255,.05),rgba(255,255,255,.02));border:1px solid var(--line)}
+.shock-row.urgent{border-color:rgba(251,191,36,.4);box-shadow:0 0 18px rgba(251,191,36,.1)}
+.shock-row.overdue{border-color:rgba(251,113,133,.45);box-shadow:0 0 18px rgba(251,113,133,.14)}
+.shock-l{flex:1;min-width:0}
+.shock-card{font-weight:800;font-size:13.5px}
+.shock-due{font-size:12px;color:var(--ink-dim);font-weight:600;margin-top:2px}
+.shock-row.urgent .shock-due b{color:var(--ember)}
+.shock-row.overdue .shock-due b{color:var(--burn)}
+.shock-amt{font-family:var(--mono);font-weight:800;font-size:16px;white-space:nowrap}
+.shock-pay{flex:none;padding:7px 16px;font-size:12px;border-radius:10px;
+  background:linear-gradient(120deg,var(--pulse),var(--ice));color:#1a0b2e;border:none;font-weight:800}
+.shock-pay:hover{box-shadow:0 0 16px rgba(176,107,255,.4)}
+
+/* ---------- CREDIT: cards modal ---------- */
+.card-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:13px;margin-bottom:8px;
+  background:rgba(255,255,255,.04);border:1px solid var(--line)}
+.card-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.card-row-main b{font-size:14px;font-weight:800}
+.card-row-meta{font-size:11.5px;color:var(--ink-dim);font-weight:600}
+.card-row button{flex:none;padding:6px 12px;font-size:12px}
+.card-form{display:flex;flex-direction:column;gap:10px}
+.card-form-days{display:flex;gap:10px}
+.card-form-days label{flex:1;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);
+  display:flex;flex-direction:column;gap:6px}
+.card-form-days input{font-family:var(--mono);text-align:center}

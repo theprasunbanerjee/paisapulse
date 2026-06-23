@@ -459,6 +459,57 @@ select option{background:#0d0a1a;color:rgba(245,240,255,.94)}
 #editCatChips .chip .k{display:none}
 #editCatChips{max-height:200px;overflow-y:auto}
 
+/* ---------- CREDIT: paywith control ---------- */
+.paywith-row{display:flex;align-items:center;gap:12px;margin:4px 0 2px;flex-wrap:wrap}
+.paywith-lbl{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-faint)}
+.paywith{display:inline-flex;background:var(--glass);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px}
+.pw-btn{font-size:12px;font-weight:700;padding:6px 13px;border-radius:8px;border:none;background:transparent;color:var(--ink-dim)}
+.pw-btn:hover{background:var(--glass-hi);transform:none}
+.pw-btn.on{background:linear-gradient(120deg,var(--pulse),var(--ice));color:#1a0b2e}
+.card-select{margin-top:10px;font-size:13px;color:var(--ink);color-scheme:dark}
+
+/* ---------- CREDIT: txn badges ---------- */
+.txn .credit-badge,.txn .pay-badge{display:inline-block;font-family:var(--body);font-size:10px;font-weight:800;
+  padding:1px 7px;border-radius:99px;margin-left:6px;vertical-align:1px;letter-spacing:.2px}
+.txn .credit-badge{color:var(--lilac);background:rgba(176,107,255,.14);border:1px solid rgba(176,107,255,.3)}
+.txn .pay-badge{color:#5eead4;background:rgba(94,234,212,.12);border:1px solid rgba(94,234,212,.28)}
+.txn.is-payment .a{color:#5eead4}
+.txn.is-payment .e{background:rgba(94,234,212,.1);border-color:rgba(94,234,212,.25)}
+
+/* ---------- CREDIT: cards & credit section ---------- */
+.credit-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:6px 0 18px}
+.credit-stat{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.credit-stat .lbl{font-size:10.5px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:var(--ink-faint)}
+.credit-stat .val{font-family:var(--mono);font-weight:800;font-size:24px;margin-top:5px;font-variant-numeric:tabular-nums}
+.credit-stat .sub{font-size:11.5px;color:var(--ink-dim);margin-top:3px;font-weight:600}
+.shock-head{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:10px}
+.shock-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;margin-bottom:8px;
+  background:linear-gradient(165deg,rgba(255,255,255,.05),rgba(255,255,255,.02));border:1px solid var(--line)}
+.shock-row.urgent{border-color:rgba(251,191,36,.4);box-shadow:0 0 18px rgba(251,191,36,.1)}
+.shock-row.overdue{border-color:rgba(251,113,133,.45);box-shadow:0 0 18px rgba(251,113,133,.14)}
+.shock-l{flex:1;min-width:0}
+.shock-card{font-weight:800;font-size:13.5px}
+.shock-due{font-size:12px;color:var(--ink-dim);font-weight:600;margin-top:2px}
+.shock-row.urgent .shock-due b{color:var(--ember)}
+.shock-row.overdue .shock-due b{color:var(--burn)}
+.shock-amt{font-family:var(--mono);font-weight:800;font-size:16px;white-space:nowrap}
+.shock-pay{flex:none;padding:7px 16px;font-size:12px;border-radius:10px;
+  background:linear-gradient(120deg,var(--pulse),var(--ice));color:#1a0b2e;border:none;font-weight:800}
+.shock-pay:hover{box-shadow:0 0 16px rgba(176,107,255,.4)}
+
+/* ---------- CREDIT: cards modal ---------- */
+.card-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:13px;margin-bottom:8px;
+  background:rgba(255,255,255,.04);border:1px solid var(--line)}
+.card-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.card-row-main b{font-size:14px;font-weight:800}
+.card-row-meta{font-size:11.5px;color:var(--ink-dim);font-weight:600}
+.card-row button{flex:none;padding:6px 12px;font-size:12px}
+.card-form{display:flex;flex-direction:column;gap:10px}
+.card-form-days{display:flex;gap:10px}
+.card-form-days label{flex:1;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--ink-faint);
+  display:flex;flex-direction:column;gap:6px}
+.card-form-days input{font-family:var(--mono);text-align:center}
+
 </style>
 </head>
 <body class="pace-ok">
@@ -496,6 +547,7 @@ select option{background:#0d0a1a;color:rgba(245,240,255,.94)}
       <span class="today-pill" id="todayPill" title="Today"></span>
       <span class="badge" id="saveBadge"><span class="dot"></span><span id="saveBadgeTxt">checking…</span></span>
       <button id="btnSound" title="Toggle sound effects" aria-label="Toggle sound effects">🔊</button>
+      <button id="btnCards">💳 Cards</button>
       <button id="btnData">⇅ Data</button>
       <button id="btnSettings">⚙ Budgets</button>
     </div>
@@ -538,6 +590,18 @@ select option{background:#0d0a1a;color:rgba(245,240,255,.94)}
     <button id="seedDismiss">Got it</button>
   </div>
 
+  <section class="card credit-card" id="creditSection" style="margin-top:14px">
+    <h2 class="txn-head"><span class="h2-title"><span class="spark"></span>Cards &amp; Credit</span>
+      <button id="btnManageCards" style="padding:6px 12px;font-size:12px">＋ Manage cards</button>
+    </h2>
+    <div class="credit-stats">
+      <div class="credit-stat"><div class="lbl">Outstanding</div><div class="val" id="outstandingAmt">₹0</div><div class="sub">owed across all cards</div></div>
+      <div class="credit-stat"><div class="lbl">Cash out this month</div><div class="val" id="cashflowAmt">₹0</div><div class="sub">money that left your bank</div></div>
+    </div>
+    <div class="shock-head">Incoming bills</div>
+    <div id="shockList"></div>
+  </section>
+
   <div class="grid">
     <div class="col">
       <section class="card">
@@ -552,6 +616,14 @@ select option{background:#0d0a1a;color:rgba(245,240,255,.94)}
           <div class="cat-suggest" id="catSuggest" hidden></div>
         </div>
         <div class="chips" id="catChips"></div>
+        <div class="paywith-row">
+          <span class="paywith-lbl">Pay with</span>
+          <span class="paywith" id="addPaywith">
+            <button type="button" class="pw-btn on" data-pw="normal">💵 Cash / UPI</button>
+            <button type="button" class="pw-btn" data-pw="credit">💳 Card</button>
+          </span>
+        </div>
+        <div id="addCardWrap" hidden><select id="addCardSel" class="card-select"></select></div>
         <div class="kbd-hint" id="kbdHint"></div>
         <input id="note" class="field-gap" placeholder="What was it? (optional)" autocomplete="off">
         <button class="btn-glow" id="btnAdd">Add expense</button>
@@ -668,9 +740,47 @@ select option{background:#0d0a1a;color:rgba(245,240,255,.94)}
     <input type="date" id="editDate">
   </div>
   <div class="chips" id="editCatChips" style="margin-top:14px"></div>
+  <div class="paywith-row">
+    <span class="paywith-lbl">Pay with</span>
+    <span class="paywith" id="editPaywith">
+      <button type="button" class="pw-btn on" data-epw="normal">💵 Cash / UPI</button>
+      <button type="button" class="pw-btn" data-epw="credit">💳 Card</button>
+    </span>
+  </div>
+  <div id="editCardWrap" hidden><select id="editCardSel" class="card-select"></select></div>
   <input id="editNote" class="field-gap" placeholder="What was it? (optional)" autocomplete="off" style="margin-top:10px">
   <div class="m-row" style="margin-top:16px">
     <button class="btn-glow" id="btnSaveEdit">Save changes</button>
+    <button data-close>Cancel</button>
+  </div>
+</dialog>
+
+<!-- Cards modal -->
+<dialog id="cardsModal">
+  <div class="m-head"><h3>Your credit cards</h3><button class="btn-ghost" data-close>✕</button></div>
+  <p class="hint">Add each card with the day its <b>statement</b> generates and the day payment is <b>due</b>. PaisaPulse groups your swipes into billing cycles and counts down to each due date.</p>
+  <div id="cardsList"></div>
+  <div class="divider"></div>
+  <div class="card-form">
+    <input id="cardName" placeholder="Card name (e.g. HDFC Millennia)" autocomplete="off" maxlength="40">
+    <div class="card-form-days">
+      <label>Statement day<input id="cardStmt" inputmode="numeric" placeholder="1–31"></label>
+      <label>Due day<input id="cardDue" inputmode="numeric" placeholder="1–31"></label>
+    </div>
+    <button class="btn-glow" id="btnAddCard">Add card</button>
+  </div>
+</dialog>
+
+<!-- Card payment modal -->
+<dialog id="payModal">
+  <div class="m-head"><h3>Record a payment — <span id="payCardName">card</span></h3><button class="btn-ghost" data-close>✕</button></div>
+  <p class="hint">Enter how much you paid toward this card's bill. Partial / minimum-due payments are fine — your outstanding just won't reach zero.</p>
+  <div class="amt-row">
+    <div class="amt-in"><span>₹</span><input id="payAmt" inputmode="text" placeholder="0" autocomplete="off"></div>
+    <input type="date" id="payDate">
+  </div>
+  <div class="m-row" style="margin-top:16px">
+    <button class="btn-glow" id="btnConfirmPay">Record payment</button>
     <button data-close>Cancel</button>
   </div>
 </dialog>
@@ -1054,6 +1164,13 @@ const KEY_NAME = "pp.name.v1";
 const KEY_URL  = "pp.cloud.url.v1";
 const KEY_OUT    = "pp.outbox.v1";
 const KEY_FOLDER = "pp.folder.url.v1";
+const KEY_CARDS    = "pp.cards.v1";
+const KEY_TXN_META = "pp.txnmeta.v1";
+
+/* transaction types — see the two-lens accounting model */
+const TX_NORMAL  = "normal";          // cash/UPI — hits Spend + Cash-flow same day
+const TX_CREDIT  = "credit";          // card swipe — hits Spend now, Cash-flow later
+const TX_PAYMENT = "credit_payment";  // paying the card bill — Cash-flow only, never Spend
 
 const URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/;
 
@@ -1235,7 +1352,7 @@ class Calculator {
       const sig = d + "|" + a + "|" + c + "|" + n;
       if (seen.has(sig)) { skipped++; continue; }
       seen.add(sig);
-      newRows.push({id:uid(), date:d, amount:a, cat:c, note:n, createdAt:new Date().toISOString()});
+      newRows.push({id:uid(), date:d, amount:a, cat:c, note:n, createdAt:new Date().toISOString(), type:TX_NORMAL, cardId:null});
       added++;
     }
     return {added, skipped, bad, rows: newRows};
@@ -1295,6 +1412,7 @@ class CloudSync {
     if (j.budgets && typeof j.budgets === "object")
       this.app.budgets = {overall: j.budgets.overall||null, cats: j.budgets.cats||{}};
     this.app.sortExp();
+    this.app.applyTxnMeta();   // re-attach credit type/cardId (the Sheet doesn't store them)
     Store.set(KEY_EXP, JSON.stringify(this.app.expenses));
     Store.set(KEY_BUD, JSON.stringify(this.app.budgets));
     if (j.folderUrl) try { localStorage.setItem(KEY_FOLDER, j.folderUrl); } catch(e) {}
@@ -1645,17 +1763,21 @@ class Renderer {
     const list    = this.app.expenses.filter(e => { const d = e.date.split("-"); return +d[0] === y && +d[1] === m+1; });
     const perDay  = Array(days+1).fill(0);
     const byCat   = {};
-    let spent = 0;
+    let spend = 0, cashflow = 0;
     for (const e of list) {
       const dd = +e.date.split("-")[2];
-      perDay[dd] += e.amount; spent += e.amount;
-      byCat[e.cat] = (byCat[e.cat]||0) + e.amount;
+      const isPay = e.type === TX_PAYMENT, isCred = e.type === TX_CREDIT;
+      if (!isPay) {                              // Spend lens (accrual): normal + credit
+        perDay[dd] += e.amount; spend += e.amount;
+        byCat[e.cat] = (byCat[e.cat]||0) + e.amount;
+      }
+      if (!isCred) cashflow += e.amount;         // Cash-flow lens: normal + credit_payment
     }
     const cum = Array(days+1).fill(0);
     for (let d = 1; d <= days; d++) cum[d] = cum[d-1] + perDay[d];
-    const avg  = elapsed > 0 ? spent / elapsed : 0;
-    const proj = isCur ? avg * days : spent;
-    return {y, m, days, isCur, isPast, elapsed, list, perDay, cum, byCat, spent, avg, proj};
+    const avg  = elapsed > 0 ? spend / elapsed : 0;
+    const proj = isCur ? avg * days : spend;
+    return {y, m, days, isCur, isPast, elapsed, list, perDay, cum, byCat, spend, cashflow, spent:spend, avg, proj};
   }
 
   /* ── number animation ── */
@@ -1758,6 +1880,7 @@ class Renderer {
     this.renderLedger(D);
     this.renderBudgets(D);
     this.renderTxns(D);
+    this.renderCredit(D);
   }
 
   /* ── day ledger ── */
@@ -1815,12 +1938,25 @@ class Renderer {
       return;
     }
 
-    const txnRow = e => {
+    /* tag shown on the category line for credit / payment rows */
+    const badge = e => {
+      if (e.type === TX_CREDIT)  { const c = a.cardById(e.cardId); return ' <span class="credit-badge">💳 ' + esc(c ? c.name : "Card") + '</span>'; }
+      if (e.type === TX_PAYMENT) { const c = a.cardById(e.cardId); return ' <span class="pay-badge">💳 ' + esc(c ? c.name : "Card") + '</span>'; }
+      return '';
+    };
+
+    /* dateStr: pass a "12 Jun" string for flat mode, "" for grouped mode */
+    const txnRow = (e, dateStr) => {
       const c = catByKey(e.cat);
-      return '<div class="txn" data-date="' + e.date + '"><span class="e">' + c.e + '</span><span class="t"><span class="n">' +
-        esc(e.note||c.n) + '</span><span class="c">' + c.n + '</span></span><span class="a">' + fmt(e.amount) +
-        '</span><button class="edit-btn" data-edit="' + e.id + '" aria-label="Edit">✎</button>' +
-      '<button class="x" data-del="' + e.id + '" aria-label="Delete">✕</button></div>';
+      const isPay = e.type === TX_PAYMENT;
+      const emoji = isPay ? "💳" : c.e;
+      const name  = isPay ? "Card payment" : esc(e.note || c.n);
+      const sub   = (isPay ? "Bill payment" : c.n) + (dateStr ? ' · <span class="tdate">' + dateStr + '</span>' : "") + badge(e);
+      const amt   = (isPay ? "−" : "") + fmt(e.amount);
+      const editBtn = isPay ? "" : '<button class="edit-btn" data-edit="' + e.id + '" aria-label="Edit">✎</button>';
+      return '<div class="' + (isPay ? "txn is-payment" : "txn") + '" data-date="' + e.date + '"><span class="e">' + emoji +
+        '</span><span class="t"><span class="n">' + name + '</span><span class="c">' + sub + '</span></span><span class="a">' + amt +
+        '</span>' + editBtn + '<button class="x" data-del="' + e.id + '" aria-label="Delete">✕</button></div>';
     };
 
     let html = "";
@@ -1830,11 +1966,12 @@ class Renderer {
       const dates = Object.keys(byDate).sort();
       if (a.txnSort === "date-desc") dates.reverse();
       for (const dt of dates) {
-        const items = byDate[dt], total = items.reduce((s, e) => s + e.amount, 0);
+        const items = byDate[dt];
+        const total = items.reduce((s, e) => s + (e.type === TX_PAYMENT ? 0 : e.amount), 0);  // day total = spend lens
         const d = new Date(dt + "T00:00:00");
         html += '<div class="txn-day" data-date="' + dt + '"><div class="day-h"><span>' +
           d.toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"short"}) +
-          '</span><b>' + fmt(total) + '</b></div>' + items.map(txnRow).join("") + '</div>';
+          '</span><b>' + fmt(total) + '</b></div>' + items.map(e => txnRow(e, "")).join("") + '</div>';
       }
     } else {
       const flat = list.slice();
@@ -1842,14 +1979,87 @@ class Renderer {
       else if (a.txnSort === "amt-asc") flat.sort((a, b) => a.amount - b.amount);
       else if (a.txnSort === "cat") flat.sort((a, b) => a.cat < b.cat ? -1 : a.cat > b.cat ? 1 : b.amount - a.amount);
       html = '<div class="txn-flat">' + flat.map(e => {
-        const c = catByKey(e.cat);
         const dd = new Date(e.date + "T00:00:00").toLocaleDateString("en-IN", {day:"numeric", month:"short"});
-        return '<div class="txn" data-date="' + e.date + '"><span class="e">' + c.e + '</span><span class="t"><span class="n">' +
-          esc(e.note||c.n) + '</span><span class="c">' + c.n + ' · <span class="tdate">' + dd + '</span></span></span><span class="a">' +
-          fmt(e.amount) + '</span><button class="x" data-del="' + e.id + '" aria-label="Delete">✕</button></div>';
+        return txnRow(e, dd);
       }).join("") + '</div>';
     }
     $("txnList").innerHTML = html;
+  }
+
+  /* ── cards & credit: outstanding, cash-flow, incoming bills ── */
+
+  /* statement closes on statementDay; a purchase on/before that day closes this
+     month, after it rolls to next month. Returns a Date at midnight. */
+  _statementClose(dateISO, statementDay) {
+    const p = dateISO.split("-").map(Number);
+    let cy = p[0], cm = p[1] - 1; const d = p[2];
+    if (d > statementDay) { cm++; if (cm > 11) { cm = 0; cy++; } }
+    const last = new Date(cy, cm + 1, 0).getDate();
+    return new Date(cy, cm, Math.min(statementDay, last));
+  }
+
+  /* due date = first occurrence of dueDay strictly after the statement close */
+  _dueDate(close, dueDay) {
+    let cy = close.getFullYear(), cm = close.getMonth();
+    let last = new Date(cy, cm + 1, 0).getDate();
+    let due = new Date(cy, cm, Math.min(dueDay, last));
+    if (due <= close) { cm++; if (cm > 11) { cm = 0; cy++; } last = new Date(cy, cm + 1, 0).getDate(); due = new Date(cy, cm, Math.min(dueDay, last)); }
+    return due;
+  }
+
+  renderCredit(D) {
+    const a = this.app;
+    if (!$("creditSection")) return;
+    D = D || this.monthData(a.view.y, a.view.m);
+
+    let totCredit = 0, totPaid = 0;
+    for (const e of a.expenses) {
+      if (e.type === TX_CREDIT) totCredit += e.amount;
+      else if (e.type === TX_PAYMENT) totPaid += e.amount;
+    }
+    const outstanding = Math.max(0, totCredit - totPaid);
+    $("outstandingAmt").textContent = fmt(outstanding);
+    $("cashflowAmt").textContent    = fmt(D.cashflow);
+
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const bills = [];
+    for (const card of a.cards) {
+      const cycles = {};
+      for (const e of a.expenses) {
+        if (e.type !== TX_CREDIT || e.cardId !== card.id) continue;
+        const close = this._statementClose(e.date, card.statementDay);
+        const key = close.getFullYear() + "-" + pad(close.getMonth() + 1);
+        (cycles[key] || (cycles[key] = {close, total: 0})).total += e.amount;
+      }
+      let paid = a.expenses.filter(e => e.type === TX_PAYMENT && e.cardId === card.id).reduce((s, e) => s + e.amount, 0);
+      for (const k of Object.keys(cycles).sort()) {           // oldest cycle first (FIFO)
+        const cyc = cycles[k];
+        const owed = cyc.total - Math.min(paid, cyc.total);
+        paid = Math.max(0, paid - cyc.total);
+        if (owed <= 0.5) continue;
+        const due  = this._dueDate(cyc.close, card.dueDay);
+        const days = Math.round((due - today) / 86400000);
+        bills.push({card, owed, due, days});
+      }
+    }
+    bills.sort((x, y) => x.due - y.due);
+
+    const shock = $("shockList");
+    if (!bills.length) {
+      shock.innerHTML = '<div class="empty" style="padding:20px 10px">' +
+        (a.cards.length ? "No bills due — you're all paid up ✓" : "Add a card (＋ Manage cards) to track credit spends and bills.") + '</div>';
+    } else {
+      shock.innerHTML = bills.map(b => {
+        const cls  = b.days < 0 ? "overdue" : b.days <= 5 ? "urgent" : "";
+        const when = b.days < 0 ? Math.abs(b.days) + "d overdue" : b.days === 0 ? "due today" : "in " + b.days + " day" + (b.days === 1 ? "" : "s");
+        const dueStr = b.due.toLocaleDateString("en-IN", {day:"numeric", month:"short"});
+        return '<div class="shock-row ' + cls + '"><div class="shock-l">' +
+          '<div class="shock-card">💳 ' + esc(b.card.name) + '</div>' +
+          '<div class="shock-due">due ' + dueStr + ' · <b>' + when + '</b></div></div>' +
+          '<div class="shock-amt">' + fmt(b.owed) + '</div>' +
+          '<button class="shock-pay" data-pay="' + b.card.id + '">Pay</button></div>';
+      }).join("");
+    }
   }
 
   /* ── category chips ── */
@@ -2096,9 +2306,82 @@ const pickOne   = a => a[Math.floor(Math.random() * a.length)];
 
 class UI {
   constructor(app) {
-    this.app         = app;
-    this.toastTimer  = null;
-    this.mpYearShown = NOW.getFullYear();
+    this.app           = app;
+    this.toastTimer    = null;
+    this.mpYearShown   = NOW.getFullYear();
+    this.editingCardId = null;
+  }
+
+  /* ── payment method (paywith) controls ── */
+
+  setAddType(type) {
+    this.app.addType = type;
+    $("addCardWrap").hidden = type !== TX_CREDIT;
+    document.querySelectorAll("#addPaywith [data-pw]").forEach(b => b.classList.toggle("on", b.dataset.pw === type));
+    if (type === TX_CREDIT && !this.app.cards.length) { this.toast("Add a card first to log credit spends"); this.openCards(); }
+  }
+  syncAddPaywith() { this.setAddType(this.app.addType); $("addCardSel").value = this.app.addCardId || ""; }
+
+  setEditType(type) {
+    this.app.editType = type;
+    $("editCardWrap").hidden = type !== TX_CREDIT;
+    document.querySelectorAll("#editPaywith [data-epw]").forEach(b => b.classList.toggle("on", b.dataset.epw === type));
+  }
+  syncEditPaywith() { this.setEditType(this.app.editType); $("editCardSel").value = this.app.editCardId || ""; }
+
+  fillCardSelects() {
+    const opts = this.app.cards.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join("");
+    const ph   = '<option value="" disabled selected>Select a card…</option>';
+    ["addCardSel", "editCardSel"].forEach(id => { const s = $(id); if (s) s.innerHTML = ph + opts; });
+  }
+
+  /* ── cards modal ── */
+
+  openCards() { this.resetCardForm(); this.fillCards(); $("cardsModal").showModal(); Sounds.open(); }
+
+  fillCards() {
+    const list = $("cardsList"); if (!list) return;
+    if (!this.app.cards.length) { list.innerHTML = '<div class="empty" style="padding:14px">No cards yet — add your first below.</div>'; return; }
+    list.innerHTML = this.app.cards.map(c =>
+      '<div class="card-row" data-card="' + c.id + '"><div class="card-row-main"><b>' + esc(c.name) + '</b>' +
+      '<span class="card-row-meta">statement day ' + c.statementDay + ' · due day ' + c.dueDay + '</span></div>' +
+      '<button class="card-edit" data-cedit="' + c.id + '">Edit</button>' +
+      '<button class="btn-danger" data-cdel="' + c.id + '">Delete</button></div>'
+    ).join("");
+  }
+
+  startCardEdit(id) {
+    const c = this.app.cardById(id); if (!c) return;
+    this.editingCardId = id;
+    $("cardName").value = c.name; $("cardStmt").value = c.statementDay; $("cardDue").value = c.dueDay;
+    $("btnAddCard").textContent = "Update card";
+    $("cardName").focus();
+  }
+  resetCardForm() {
+    this.editingCardId = null;
+    $("cardName").value = ""; $("cardStmt").value = ""; $("cardDue").value = "";
+    $("btnAddCard").textContent = "Add card";
+  }
+  submitCard() {
+    const name = $("cardName").value, s = $("cardStmt").value, d = $("cardDue").value;
+    const ok = this.editingCardId ? this.app.updateCard(this.editingCardId, name, s, d) : this.app.addCard(name, s, d);
+    if (ok) { this.resetCardForm(); this.fillCards(); this.fillCardSelects(); Sounds.success(); }
+  }
+
+  /* ── card payment modal ── */
+
+  openPay(cardId) {
+    this.app.payCardId = cardId;
+    const c = this.app.cardById(cardId);
+    $("payCardName").textContent = c ? c.name : "card";
+    $("payAmt").value = ""; $("payDate").value = todayISO();
+    $("payModal").showModal(); Sounds.open();
+    setTimeout(() => $("payAmt").focus(), 50);
+  }
+  confirmPay() {
+    if (this.app.recordPayment(this.app.payCardId, $("payAmt").value, $("payDate").value)) {
+      $("payModal").close(); this.fillCards();
+    }
   }
 
   /* ── toast ── */
@@ -2263,8 +2546,12 @@ class UI {
     const month = MONTHS[a.view.m] + " " + a.view.y;
     const B = a.budgets.overall;
     const diff = P.spent > 0 ? D.spent - P.spent : null;
-    const txnCount = D.list.length;
+    const spendList = D.list.filter(e => e.type !== TX_PAYMENT);   // report covers what you consumed
+    const txnCount = spendList.length;
     const avgTxn   = txnCount > 0 ? D.spent / txnCount : 0;
+    let totCredit = 0, totPaid = 0;
+    for (const e of a.expenses) { if (e.type === TX_CREDIT) totCredit += e.amount; else if (e.type === TX_PAYMENT) totPaid += e.amount; }
+    const outstanding = Math.max(0, totCredit - totPaid);
     const perDay   = D.perDay.slice(1);
     const daysWithSpend = perDay.filter(v => v > 0).length;
     const maxDaySpend   = Math.max(...perDay);
@@ -2288,7 +2575,7 @@ class UI {
     }).join("");
 
     const byDate = {};
-    for (const e of [...D.list].sort((x,y) => x.date < y.date ? 1 : -1))
+    for (const e of [...spendList].sort((x,y) => x.date < y.date ? 1 : -1))
       (byDate[e.date] = byDate[e.date] || []).push(e);
     const txnHTML = Object.entries(byDate).map(([dt, items]) => {
       const total = items.reduce((s, e) => s + e.amount, 0);
@@ -2309,9 +2596,11 @@ class UI {
     const insHTML = ins.map(i => `<div class="ri"><div class="ri-l">${i.l}</div><div class="ri-v ${i.cls}">${i.v}</div></div>`).join("");
 
     const kpis = [
-      {l:"Total Spent", v:fmt(D.spent), sub: diff!==null?(diff<=0?"▼ ":"▲ ")+fmt(Math.abs(diff))+" vs "+MONTHS[Pm].slice(0,3):"", cls:diff!==null?(diff<=0?"good":"bad"):""},
+      {l:"Total Spent", v:fmt(D.spent), sub: diff!==null?(diff<=0?"▼ ":"▲ ")+fmt(Math.abs(diff))+" vs "+MONTHS[Pm].slice(0,3):"consumed this month", cls:diff!==null?(diff<=0?"good":"bad"):""},
+      {l:"Cash Out", v:fmt(D.cashflow), sub:"left your bank this month", cls:""},
       {l:"Transactions", v:String(txnCount), sub:"avg "+fmt(avgTxn)+" each", cls:""},
       {l:"Daily Average", v:fmt(D.avg), sub:"over "+D.elapsed+" days", cls:""},
+      ...(outstanding>0?[{l:"Card Outstanding", v:fmt(outstanding), sub:"owed across cards", cls:"bad"}]:[]),
       ...(B?[{l:"vs Budget", v:fmt(Math.abs(B-D.spent)), sub:D.spent>B?"⛔ Over budget":"✓ Under budget", cls:D.spent>B?"bad":"good"}]:[])
     ];
     const kpiHTML = kpis.map(k=>`<div class="rkpi"><div class="rkpi-l">${k.l}</div><div class="rkpi-v">${k.v}</div><div class="rkpi-sub ${k.cls}">${k.sub}</div></div>`).join("");
@@ -2404,6 +2693,33 @@ h2{font-family:'Unbounded',sans-serif;font-weight:700;font-size:11px;letter-spac
 
     /* add expense */
     $("btnAdd").addEventListener("click", () => a.addExpense());
+
+    /* payment-method (paywith) controls */
+    this.fillCardSelects();
+    this.syncAddPaywith();
+    $("addPaywith").addEventListener("click", e => { const b = e.target.closest("[data-pw]"); if (b) this.setAddType(b.dataset.pw); });
+    $("addCardSel").addEventListener("change", () => { a.addCardId = $("addCardSel").value || null; });
+    $("editPaywith").addEventListener("click", e => { const b = e.target.closest("[data-epw]"); if (b) this.setEditType(b.dataset.epw); });
+    $("editCardSel").addEventListener("change", () => { a.editCardId = $("editCardSel").value || null; });
+
+    /* cards modal */
+    $("btnCards").addEventListener("click", () => this.openCards());
+    $("btnManageCards").addEventListener("click", () => this.openCards());
+    $("btnAddCard").addEventListener("click", () => this.submitCard());
+    $("cardsList").addEventListener("click", e => {
+      const ed = e.target.closest("[data-cedit]"); if (ed) { this.startCardEdit(ed.dataset.cedit); return; }
+      const dl = e.target.closest("[data-cdel]");
+      if (dl) {
+        if (dl.dataset.armed) { a.deleteCard(dl.dataset.cdel); this.fillCards(); this.fillCardSelects(); Sounds.delete(); return; }
+        dl.dataset.armed = "1"; dl.textContent = "Sure?";
+        setTimeout(() => { if (dl.isConnected) { delete dl.dataset.armed; dl.textContent = "Delete"; } }, 3000);
+      }
+    });
+
+    /* card payment */
+    $("shockList").addEventListener("click", e => { const b = e.target.closest("[data-pay]"); if (b) this.openPay(b.dataset.pay); });
+    $("btnConfirmPay").addEventListener("click", () => this.confirmPay());
+    $("payAmt").addEventListener("keydown", e => { if (e.key === "Enter") this.confirmPay(); });
 
     /* edit */
     $("txnList").addEventListener("click", e => {
@@ -2597,6 +2913,12 @@ class PaisaPulse {
     this.lastDeleted = null;
     this.editingId   = null;
     this.editSelCat  = "dining";
+    this.cards       = [];        // credit cards: {id, name, statementDay, dueDay}
+    this.addType     = TX_NORMAL; // payment method on the add form
+    this.addCardId   = null;
+    this.editType    = TX_NORMAL;
+    this.editCardId  = null;
+    this.payCardId   = null;
 
     /* ── sub-systems (each receives a reference back to this app) ── */
     this.cloud    = new CloudSync(this);
@@ -2611,6 +2933,32 @@ class PaisaPulse {
 
   render()  { this.renderer.render(); }
   sortExp() { this.expenses.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0); }
+
+  /* ── credit overlay + cards persistence ── */
+
+  /* Mirror type/cardId into a side-table keyed by id, so a cloud pull
+     (which rebuilds expenses from the Sheet, sans these fields) can re-attach them. */
+  saveTxnMeta() {
+    const m = {};
+    for (const e of this.expenses) {
+      if ((e.type && e.type !== TX_NORMAL) || e.cardId) m[e.id] = {type: e.type || TX_NORMAL, cardId: e.cardId || null};
+    }
+    try { localStorage.setItem(KEY_TXN_META, JSON.stringify(m)); } catch(e) {}
+  }
+  saveCards() { try { localStorage.setItem(KEY_CARDS, JSON.stringify(this.cards)); } catch(e) {} }
+  cardById(id) { return this.cards.find(c => c.id === id) || null; }
+
+  /* Re-attach type/cardId from the overlay onto whatever is in this.expenses.
+     Local rows already carry them; cloud-pulled rows don't — this fixes those. */
+  applyTxnMeta() {
+    let m = {};
+    try { m = JSON.parse(localStorage.getItem(KEY_TXN_META)) || {}; } catch(e) {}
+    for (const e of this.expenses) {
+      const o = m[e.id];
+      if (!e.type) e.type = (o && o.type) || TX_NORMAL;
+      if (e.cardId == null) e.cardId = (o && o.cardId) || null;
+    }
+  }
 
   persist() {
     clearTimeout(this.saveTimer);
@@ -2627,13 +2975,17 @@ class PaisaPulse {
     const a = Calculator.parseAmount($("amt").value);
     if (!a || a <= 0) { this.ui.toast("Enter an amount first"); $("amt").focus(); return; }
     const d   = $("date").value || todayISO();
-    const exp = {id:uid(), date:d, amount:a, cat:this.selCat, note:$("note").value.trim(), createdAt:new Date().toISOString()};
-    this.expenses.push(exp); this.sortExp(); this.persist();
+    const isCredit = this.addType === TX_CREDIT;
+    if (isCredit && !this.addCardId) { this.ui.toast("Pick a card for this credit purchase"); return; }
+    const exp = {id:uid(), date:d, amount:a, cat:this.selCat, note:$("note").value.trim(), createdAt:new Date().toISOString(),
+                 type: isCredit ? TX_CREDIT : TX_NORMAL, cardId: isCredit ? this.addCardId : null};
+    this.expenses.push(exp); this.sortExp(); this.persist(); this.saveTxnMeta();
     const parts = d.split("-"); this.view = {y:+parts[0], m:+parts[1]-1};
     $("amt").value = ""; $("note").value = "";
+    this.addType = TX_NORMAL; this.addCardId = null; this.ui.syncAddPaywith();
     this.render();
     Sounds.add();
-    this.ui.toast("Added " + fmt(a) + (this.cloudUrl ? " · saving…" : " ✓"));
+    this.ui.toast("Added " + fmt(a) + (isCredit ? " on " + (this.cardById(exp.cardId)?.name || "card") : "") + (this.cloudUrl ? " · saving…" : " ✓"));
     this.cloud.sync({op:"add", expense:exp});
   }
 
@@ -2641,22 +2993,26 @@ class PaisaPulse {
     const i = this.expenses.findIndex(x => x.id === id); if (i < 0) return;
     this.lastDeleted = this.expenses.splice(i, 1)[0];
     Sounds.delete();
-    this.persist(); this.render();
+    this.persist(); this.saveTxnMeta(); this.render();
     this.cloud.sync({op:"delete", id:this.lastDeleted.id});
     this.ui.toast("Deleted " + fmt(this.lastDeleted.amount), "Undo", () => {
-      this.expenses.push(this.lastDeleted); this.sortExp(); this.persist(); this.render();
+      this.expenses.push(this.lastDeleted); this.sortExp(); this.persist(); this.saveTxnMeta(); this.render();
       this.cloud.sync({op:"add", expense:this.lastDeleted});
     });
   }
 
   editTxn(id) {
     const exp = this.expenses.find(x => x.id === id); if (!exp) return;
+    if (exp.type === TX_PAYMENT) { this.ui.toast("Edit card payments from the Cards section"); return; }
     this.editingId  = id;
     this.editSelCat = exp.cat;
+    this.editType   = exp.type === TX_CREDIT ? TX_CREDIT : TX_NORMAL;
+    this.editCardId = exp.cardId || null;
     $("editAmt").value  = exp.amount;
     $("editDate").value = exp.date;
     $("editNote").value = exp.note || "";
     this.renderer.renderEditChips();
+    this.ui.syncEditPaywith();
     $("editModal").showModal();
     Sounds.open();
   }
@@ -2665,11 +3021,14 @@ class PaisaPulse {
     const id = this.editingId; if (!id) return;
     const a = Calculator.parseAmount($("editAmt").value);
     if (!a || a <= 0) { this.ui.toast("Enter a valid amount"); $("editAmt").focus(); return; }
+    const isCredit = this.editType === TX_CREDIT;
+    if (isCredit && !this.editCardId) { this.ui.toast("Pick a card for this credit purchase"); return; }
     const i = this.expenses.findIndex(x => x.id === id); if (i < 0) return;
     const old = this.expenses[i];
-    const updated = {id: old.id, date: $("editDate").value || old.date, amount: a, cat: this.editSelCat, note: $("editNote").value.trim(), createdAt: old.createdAt || ""};
+    const updated = {id: old.id, date: $("editDate").value || old.date, amount: a, cat: this.editSelCat, note: $("editNote").value.trim(),
+                     createdAt: old.createdAt || "", type: isCredit ? TX_CREDIT : TX_NORMAL, cardId: isCredit ? this.editCardId : null};
     this.expenses[i] = updated;
-    this.sortExp(); this.persist();
+    this.sortExp(); this.persist(); this.saveTxnMeta();
     const parts = updated.date.split("-"); this.view = {y:+parts[0], m:+parts[1]-1};
     this.render();
     $("editModal").close();
@@ -2678,6 +3037,46 @@ class PaisaPulse {
     this.cloud.sync({op:"delete", id: old.id});
     this.cloud.sync({op:"add", expense: updated});
     this.editingId = null;
+  }
+
+  /* ── card payments & card CRUD ── */
+
+  recordPayment(cardId, amount, date) {
+    const a = Calculator.parseAmount(amount);
+    if (!a || a <= 0) { this.ui.toast("Enter a valid amount"); return false; }
+    const card = this.cardById(cardId);
+    const exp = {id:uid(), date: date || todayISO(), amount:a, cat:"debt",
+                 note: "Card payment" + (card ? " · " + card.name : ""), createdAt:new Date().toISOString(),
+                 type: TX_PAYMENT, cardId: cardId || null};
+    this.expenses.push(exp); this.sortExp(); this.persist(); this.saveTxnMeta();
+    const parts = exp.date.split("-"); this.view = {y:+parts[0], m:+parts[1]-1};
+    this.render();
+    Sounds.add();
+    this.ui.toast("Payment of " + fmt(a) + " recorded" + (this.cloudUrl ? " · saving…" : " ✓"));
+    this.cloud.sync({op:"add", expense:exp});
+    return true;
+  }
+
+  addCard(name, statementDay, dueDay) {
+    name = String(name || "").trim().slice(0, 40);
+    if (!name) { this.ui.toast("Give the card a name"); return false; }
+    const s = Math.min(31, Math.max(1, +statementDay || 1));
+    const d = Math.min(31, Math.max(1, +dueDay || 1));
+    this.cards.push({id:uid(), name, statementDay:s, dueDay:d});
+    this.saveCards(); this.render();
+    return true;
+  }
+  updateCard(id, name, statementDay, dueDay) {
+    const c = this.cardById(id); if (!c) return false;
+    c.name = String(name || c.name).trim().slice(0, 40);
+    c.statementDay = Math.min(31, Math.max(1, +statementDay || c.statementDay));
+    c.dueDay = Math.min(31, Math.max(1, +dueDay || c.dueDay));
+    this.saveCards(); this.render();
+    return true;
+  }
+  deleteCard(id) {
+    this.cards = this.cards.filter(c => c.id !== id);
+    this.saveCards(); this.render();
   }
 
   /* ── initialisation ── */
@@ -2693,7 +3092,11 @@ class PaisaPulse {
       const b = await Store.get(KEY_BUD);  if (b) this.budgets  = Object.assign({overall:null, cats:{}}, JSON.parse(b));
       const m = await Store.get(KEY_META); if (m) this.meta     = Object.assign(this.meta, JSON.parse(m));
       const n = await Store.get(KEY_NAME); if (n) this.userName = n;
+      const cd = await Store.get(KEY_CARDS); if (cd) this.cards = JSON.parse(cd) || [];
     } catch(err) { console.error("load failed", err); }
+
+    /* Re-attach credit type/cardId from the local overlay (survives cloud pulls) */
+    this.applyTxnMeta();
 
     /* Seed only for a brand-new, never-connected user */
     if (!this.expenses.length && !this.cloudUrl) {

@@ -15,17 +15,21 @@ class Renderer {
     const list    = this.app.expenses.filter(e => { const d = e.date.split("-"); return +d[0] === y && +d[1] === m+1; });
     const perDay  = Array(days+1).fill(0);
     const byCat   = {};
-    let spent = 0;
+    let spend = 0, cashflow = 0;
     for (const e of list) {
       const dd = +e.date.split("-")[2];
-      perDay[dd] += e.amount; spent += e.amount;
-      byCat[e.cat] = (byCat[e.cat]||0) + e.amount;
+      const isPay = e.type === TX_PAYMENT, isCred = e.type === TX_CREDIT;
+      if (!isPay) {                              // Spend lens (accrual): normal + credit
+        perDay[dd] += e.amount; spend += e.amount;
+        byCat[e.cat] = (byCat[e.cat]||0) + e.amount;
+      }
+      if (!isCred) cashflow += e.amount;         // Cash-flow lens: normal + credit_payment
     }
     const cum = Array(days+1).fill(0);
     for (let d = 1; d <= days; d++) cum[d] = cum[d-1] + perDay[d];
-    const avg  = elapsed > 0 ? spent / elapsed : 0;
-    const proj = isCur ? avg * days : spent;
-    return {y, m, days, isCur, isPast, elapsed, list, perDay, cum, byCat, spent, avg, proj};
+    const avg  = elapsed > 0 ? spend / elapsed : 0;
+    const proj = isCur ? avg * days : spend;
+    return {y, m, days, isCur, isPast, elapsed, list, perDay, cum, byCat, spend, cashflow, spent:spend, avg, proj};
   }
 
   /* ── number animation ── */
@@ -128,6 +132,7 @@ class Renderer {
     this.renderLedger(D);
     this.renderBudgets(D);
     this.renderTxns(D);
+    this.renderCredit(D);
   }
 
   /* ── day ledger ── */
@@ -185,12 +190,25 @@ class Renderer {
       return;
     }
 
-    const txnRow = e => {
+    /* tag shown on the category line for credit / payment rows */
+    const badge = e => {
+      if (e.type === TX_CREDIT)  { const c = a.cardById(e.cardId); return ' <span class="credit-badge">💳 ' + esc(c ? c.name : "Card") + '</span>'; }
+      if (e.type === TX_PAYMENT) { const c = a.cardById(e.cardId); return ' <span class="pay-badge">💳 ' + esc(c ? c.name : "Card") + '</span>'; }
+      return '';
+    };
+
+    /* dateStr: pass a "12 Jun" string for flat mode, "" for grouped mode */
+    const txnRow = (e, dateStr) => {
       const c = catByKey(e.cat);
-      return '<div class="txn" data-date="' + e.date + '"><span class="e">' + c.e + '</span><span class="t"><span class="n">' +
-        esc(e.note||c.n) + '</span><span class="c">' + c.n + '</span></span><span class="a">' + fmt(e.amount) +
-        '</span><button class="edit-btn" data-edit="' + e.id + '" aria-label="Edit">✎</button>' +
-      '<button class="x" data-del="' + e.id + '" aria-label="Delete">✕</button></div>';
+      const isPay = e.type === TX_PAYMENT;
+      const emoji = isPay ? "💳" : c.e;
+      const name  = isPay ? "Card payment" : esc(e.note || c.n);
+      const sub   = (isPay ? "Bill payment" : c.n) + (dateStr ? ' · <span class="tdate">' + dateStr + '</span>' : "") + badge(e);
+      const amt   = (isPay ? "−" : "") + fmt(e.amount);
+      const editBtn = isPay ? "" : '<button class="edit-btn" data-edit="' + e.id + '" aria-label="Edit">✎</button>';
+      return '<div class="' + (isPay ? "txn is-payment" : "txn") + '" data-date="' + e.date + '"><span class="e">' + emoji +
+        '</span><span class="t"><span class="n">' + name + '</span><span class="c">' + sub + '</span></span><span class="a">' + amt +
+        '</span>' + editBtn + '<button class="x" data-del="' + e.id + '" aria-label="Delete">✕</button></div>';
     };
 
     let html = "";
@@ -200,11 +218,12 @@ class Renderer {
       const dates = Object.keys(byDate).sort();
       if (a.txnSort === "date-desc") dates.reverse();
       for (const dt of dates) {
-        const items = byDate[dt], total = items.reduce((s, e) => s + e.amount, 0);
+        const items = byDate[dt];
+        const total = items.reduce((s, e) => s + (e.type === TX_PAYMENT ? 0 : e.amount), 0);  // day total = spend lens
         const d = new Date(dt + "T00:00:00");
         html += '<div class="txn-day" data-date="' + dt + '"><div class="day-h"><span>' +
           d.toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"short"}) +
-          '</span><b>' + fmt(total) + '</b></div>' + items.map(txnRow).join("") + '</div>';
+          '</span><b>' + fmt(total) + '</b></div>' + items.map(e => txnRow(e, "")).join("") + '</div>';
       }
     } else {
       const flat = list.slice();
@@ -212,14 +231,87 @@ class Renderer {
       else if (a.txnSort === "amt-asc") flat.sort((a, b) => a.amount - b.amount);
       else if (a.txnSort === "cat") flat.sort((a, b) => a.cat < b.cat ? -1 : a.cat > b.cat ? 1 : b.amount - a.amount);
       html = '<div class="txn-flat">' + flat.map(e => {
-        const c = catByKey(e.cat);
         const dd = new Date(e.date + "T00:00:00").toLocaleDateString("en-IN", {day:"numeric", month:"short"});
-        return '<div class="txn" data-date="' + e.date + '"><span class="e">' + c.e + '</span><span class="t"><span class="n">' +
-          esc(e.note||c.n) + '</span><span class="c">' + c.n + ' · <span class="tdate">' + dd + '</span></span></span><span class="a">' +
-          fmt(e.amount) + '</span><button class="x" data-del="' + e.id + '" aria-label="Delete">✕</button></div>';
+        return txnRow(e, dd);
       }).join("") + '</div>';
     }
     $("txnList").innerHTML = html;
+  }
+
+  /* ── cards & credit: outstanding, cash-flow, incoming bills ── */
+
+  /* statement closes on statementDay; a purchase on/before that day closes this
+     month, after it rolls to next month. Returns a Date at midnight. */
+  _statementClose(dateISO, statementDay) {
+    const p = dateISO.split("-").map(Number);
+    let cy = p[0], cm = p[1] - 1; const d = p[2];
+    if (d > statementDay) { cm++; if (cm > 11) { cm = 0; cy++; } }
+    const last = new Date(cy, cm + 1, 0).getDate();
+    return new Date(cy, cm, Math.min(statementDay, last));
+  }
+
+  /* due date = first occurrence of dueDay strictly after the statement close */
+  _dueDate(close, dueDay) {
+    let cy = close.getFullYear(), cm = close.getMonth();
+    let last = new Date(cy, cm + 1, 0).getDate();
+    let due = new Date(cy, cm, Math.min(dueDay, last));
+    if (due <= close) { cm++; if (cm > 11) { cm = 0; cy++; } last = new Date(cy, cm + 1, 0).getDate(); due = new Date(cy, cm, Math.min(dueDay, last)); }
+    return due;
+  }
+
+  renderCredit(D) {
+    const a = this.app;
+    if (!$("creditSection")) return;
+    D = D || this.monthData(a.view.y, a.view.m);
+
+    let totCredit = 0, totPaid = 0;
+    for (const e of a.expenses) {
+      if (e.type === TX_CREDIT) totCredit += e.amount;
+      else if (e.type === TX_PAYMENT) totPaid += e.amount;
+    }
+    const outstanding = Math.max(0, totCredit - totPaid);
+    $("outstandingAmt").textContent = fmt(outstanding);
+    $("cashflowAmt").textContent    = fmt(D.cashflow);
+
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const bills = [];
+    for (const card of a.cards) {
+      const cycles = {};
+      for (const e of a.expenses) {
+        if (e.type !== TX_CREDIT || e.cardId !== card.id) continue;
+        const close = this._statementClose(e.date, card.statementDay);
+        const key = close.getFullYear() + "-" + pad(close.getMonth() + 1);
+        (cycles[key] || (cycles[key] = {close, total: 0})).total += e.amount;
+      }
+      let paid = a.expenses.filter(e => e.type === TX_PAYMENT && e.cardId === card.id).reduce((s, e) => s + e.amount, 0);
+      for (const k of Object.keys(cycles).sort()) {           // oldest cycle first (FIFO)
+        const cyc = cycles[k];
+        const owed = cyc.total - Math.min(paid, cyc.total);
+        paid = Math.max(0, paid - cyc.total);
+        if (owed <= 0.5) continue;
+        const due  = this._dueDate(cyc.close, card.dueDay);
+        const days = Math.round((due - today) / 86400000);
+        bills.push({card, owed, due, days});
+      }
+    }
+    bills.sort((x, y) => x.due - y.due);
+
+    const shock = $("shockList");
+    if (!bills.length) {
+      shock.innerHTML = '<div class="empty" style="padding:20px 10px">' +
+        (a.cards.length ? "No bills due — you're all paid up ✓" : "Add a card (＋ Manage cards) to track credit spends and bills.") + '</div>';
+    } else {
+      shock.innerHTML = bills.map(b => {
+        const cls  = b.days < 0 ? "overdue" : b.days <= 5 ? "urgent" : "";
+        const when = b.days < 0 ? Math.abs(b.days) + "d overdue" : b.days === 0 ? "due today" : "in " + b.days + " day" + (b.days === 1 ? "" : "s");
+        const dueStr = b.due.toLocaleDateString("en-IN", {day:"numeric", month:"short"});
+        return '<div class="shock-row ' + cls + '"><div class="shock-l">' +
+          '<div class="shock-card">💳 ' + esc(b.card.name) + '</div>' +
+          '<div class="shock-due">due ' + dueStr + ' · <b>' + when + '</b></div></div>' +
+          '<div class="shock-amt">' + fmt(b.owed) + '</div>' +
+          '<button class="shock-pay" data-pay="' + b.card.id + '">Pay</button></div>';
+      }).join("");
+    }
   }
 
   /* ── category chips ── */

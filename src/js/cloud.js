@@ -49,6 +49,7 @@ class CloudSync {
     if (j.budgets && typeof j.budgets === "object")
       this.app.budgets = {overall: j.budgets.overall||null, cats: j.budgets.cats||{}};
     this.app.sortExp();
+    this.app.applyTxnMeta();   // re-attach credit type/cardId (the Sheet doesn't store them)
     Store.set(KEY_EXP, JSON.stringify(this.app.expenses));
     Store.set(KEY_BUD, JSON.stringify(this.app.budgets));
     if (j.folderUrl) try { localStorage.setItem(KEY_FOLDER, j.folderUrl); } catch(e) {}

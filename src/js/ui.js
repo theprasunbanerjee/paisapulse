@@ -27,9 +27,82 @@ const pickOne   = a => a[Math.floor(Math.random() * a.length)];
 
 class UI {
   constructor(app) {
-    this.app         = app;
-    this.toastTimer  = null;
-    this.mpYearShown = NOW.getFullYear();
+    this.app           = app;
+    this.toastTimer    = null;
+    this.mpYearShown   = NOW.getFullYear();
+    this.editingCardId = null;
+  }
+
+  /* ── payment method (paywith) controls ── */
+
+  setAddType(type) {
+    this.app.addType = type;
+    $("addCardWrap").hidden = type !== TX_CREDIT;
+    document.querySelectorAll("#addPaywith [data-pw]").forEach(b => b.classList.toggle("on", b.dataset.pw === type));
+    if (type === TX_CREDIT && !this.app.cards.length) { this.toast("Add a card first to log credit spends"); this.openCards(); }
+  }
+  syncAddPaywith() { this.setAddType(this.app.addType); $("addCardSel").value = this.app.addCardId || ""; }
+
+  setEditType(type) {
+    this.app.editType = type;
+    $("editCardWrap").hidden = type !== TX_CREDIT;
+    document.querySelectorAll("#editPaywith [data-epw]").forEach(b => b.classList.toggle("on", b.dataset.epw === type));
+  }
+  syncEditPaywith() { this.setEditType(this.app.editType); $("editCardSel").value = this.app.editCardId || ""; }
+
+  fillCardSelects() {
+    const opts = this.app.cards.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join("");
+    const ph   = '<option value="" disabled selected>Select a card…</option>';
+    ["addCardSel", "editCardSel"].forEach(id => { const s = $(id); if (s) s.innerHTML = ph + opts; });
+  }
+
+  /* ── cards modal ── */
+
+  openCards() { this.resetCardForm(); this.fillCards(); $("cardsModal").showModal(); Sounds.open(); }
+
+  fillCards() {
+    const list = $("cardsList"); if (!list) return;
+    if (!this.app.cards.length) { list.innerHTML = '<div class="empty" style="padding:14px">No cards yet — add your first below.</div>'; return; }
+    list.innerHTML = this.app.cards.map(c =>
+      '<div class="card-row" data-card="' + c.id + '"><div class="card-row-main"><b>' + esc(c.name) + '</b>' +
+      '<span class="card-row-meta">statement day ' + c.statementDay + ' · due day ' + c.dueDay + '</span></div>' +
+      '<button class="card-edit" data-cedit="' + c.id + '">Edit</button>' +
+      '<button class="btn-danger" data-cdel="' + c.id + '">Delete</button></div>'
+    ).join("");
+  }
+
+  startCardEdit(id) {
+    const c = this.app.cardById(id); if (!c) return;
+    this.editingCardId = id;
+    $("cardName").value = c.name; $("cardStmt").value = c.statementDay; $("cardDue").value = c.dueDay;
+    $("btnAddCard").textContent = "Update card";
+    $("cardName").focus();
+  }
+  resetCardForm() {
+    this.editingCardId = null;
+    $("cardName").value = ""; $("cardStmt").value = ""; $("cardDue").value = "";
+    $("btnAddCard").textContent = "Add card";
+  }
+  submitCard() {
+    const name = $("cardName").value, s = $("cardStmt").value, d = $("cardDue").value;
+    const ok = this.editingCardId ? this.app.updateCard(this.editingCardId, name, s, d) : this.app.addCard(name, s, d);
+    if (ok) { this.resetCardForm(); this.fillCards(); this.fillCardSelects(); Sounds.success(); }
+  }
+
+  /* ── card payment modal ── */
+
+  openPay(cardId) {
+    this.app.payCardId = cardId;
+    const c = this.app.cardById(cardId);
+    $("payCardName").textContent = c ? c.name : "card";
+    $("payAmt").value = ""; $("payDate").value = todayISO();
+    $("payModal").showModal(); Sounds.open();
+    setTimeout(() => $("payAmt").focus(), 50);
+  }
+  confirmPay() {
+    if (this.app.recordPayment(this.app.payCardId, $("payAmt").value, $("payDate").value)) {
+      $("payModal").close(); this.fillCards();
+    }
   }
 
   /* ── toast ── */
@@ -194,8 +267,12 @@ class UI {
     const month = MONTHS[a.view.m] + " " + a.view.y;
     const B = a.budgets.overall;
     const diff = P.spent > 0 ? D.spent - P.spent : null;
-    const txnCount = D.list.length;
+    const spendList = D.list.filter(e => e.type !== TX_PAYMENT);   // report covers what you consumed
+    const txnCount = spendList.length;
     const avgTxn   = txnCount > 0 ? D.spent / txnCount : 0;
+    let totCredit = 0, totPaid = 0;
+    for (const e of a.expenses) { if (e.type === TX_CREDIT) totCredit += e.amount; else if (e.type === TX_PAYMENT) totPaid += e.amount; }
+    const outstanding = Math.max(0, totCredit - totPaid);
     const perDay   = D.perDay.slice(1);
     const daysWithSpend = perDay.filter(v => v > 0).length;
     const maxDaySpend   = Math.max(...perDay);
@@ -219,7 +296,7 @@ class UI {
     }).join("");
 
     const byDate = {};
-    for (const e of [...D.list].sort((x,y) => x.date < y.date ? 1 : -1))
+    for (const e of [...spendList].sort((x,y) => x.date < y.date ? 1 : -1))
       (byDate[e.date] = byDate[e.date] || []).push(e);
     const txnHTML = Object.entries(byDate).map(([dt, items]) => {
       const total = items.reduce((s, e) => s + e.amount, 0);
@@ -240,9 +317,11 @@ class UI {
     const insHTML = ins.map(i => `<div class="ri"><div class="ri-l">${i.l}</div><div class="ri-v ${i.cls}">${i.v}</div></div>`).join("");
 
     const kpis = [
-      {l:"Total Spent", v:fmt(D.spent), sub: diff!==null?(diff<=0?"▼ ":"▲ ")+fmt(Math.abs(diff))+" vs "+MONTHS[Pm].slice(0,3):"", cls:diff!==null?(diff<=0?"good":"bad"):""},
+      {l:"Total Spent", v:fmt(D.spent), sub: diff!==null?(diff<=0?"▼ ":"▲ ")+fmt(Math.abs(diff))+" vs "+MONTHS[Pm].slice(0,3):"consumed this month", cls:diff!==null?(diff<=0?"good":"bad"):""},
+      {l:"Cash Out", v:fmt(D.cashflow), sub:"left your bank this month", cls:""},
       {l:"Transactions", v:String(txnCount), sub:"avg "+fmt(avgTxn)+" each", cls:""},
       {l:"Daily Average", v:fmt(D.avg), sub:"over "+D.elapsed+" days", cls:""},
+      ...(outstanding>0?[{l:"Card Outstanding", v:fmt(outstanding), sub:"owed across cards", cls:"bad"}]:[]),
       ...(B?[{l:"vs Budget", v:fmt(Math.abs(B-D.spent)), sub:D.spent>B?"⛔ Over budget":"✓ Under budget", cls:D.spent>B?"bad":"good"}]:[])
     ];
     const kpiHTML = kpis.map(k=>`<div class="rkpi"><div class="rkpi-l">${k.l}</div><div class="rkpi-v">${k.v}</div><div class="rkpi-sub ${k.cls}">${k.sub}</div></div>`).join("");
@@ -335,6 +414,33 @@ h2{font-family:'Unbounded',sans-serif;font-weight:700;font-size:11px;letter-spac
 
     /* add expense */
     $("btnAdd").addEventListener("click", () => a.addExpense());
+
+    /* payment-method (paywith) controls */
+    this.fillCardSelects();
+    this.syncAddPaywith();
+    $("addPaywith").addEventListener("click", e => { const b = e.target.closest("[data-pw]"); if (b) this.setAddType(b.dataset.pw); });
+    $("addCardSel").addEventListener("change", () => { a.addCardId = $("addCardSel").value || null; });
+    $("editPaywith").addEventListener("click", e => { const b = e.target.closest("[data-epw]"); if (b) this.setEditType(b.dataset.epw); });
+    $("editCardSel").addEventListener("change", () => { a.editCardId = $("editCardSel").value || null; });
+
+    /* cards modal */
+    $("btnCards").addEventListener("click", () => this.openCards());
+    $("btnManageCards").addEventListener("click", () => this.openCards());
+    $("btnAddCard").addEventListener("click", () => this.submitCard());
+    $("cardsList").addEventListener("click", e => {
+      const ed = e.target.closest("[data-cedit]"); if (ed) { this.startCardEdit(ed.dataset.cedit); return; }
+      const dl = e.target.closest("[data-cdel]");
+      if (dl) {
+        if (dl.dataset.armed) { a.deleteCard(dl.dataset.cdel); this.fillCards(); this.fillCardSelects(); Sounds.delete(); return; }
+        dl.dataset.armed = "1"; dl.textContent = "Sure?";
+        setTimeout(() => { if (dl.isConnected) { delete dl.dataset.armed; dl.textContent = "Delete"; } }, 3000);
+      }
+    });
+
+    /* card payment */
+    $("shockList").addEventListener("click", e => { const b = e.target.closest("[data-pay]"); if (b) this.openPay(b.dataset.pay); });
+    $("btnConfirmPay").addEventListener("click", () => this.confirmPay());
+    $("payAmt").addEventListener("keydown", e => { if (e.key === "Enter") this.confirmPay(); });
 
     /* edit */
     $("txnList").addEventListener("click", e => {

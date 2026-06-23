@@ -125,7 +125,7 @@ class Calculator {
       const sig = d + "|" + a + "|" + c + "|" + n;
       if (seen.has(sig)) { skipped++; continue; }
       seen.add(sig);
-      newRows.push({id:uid(), date:d, amount:a, cat:c, note:n, createdAt:new Date().toISOString()});
+      newRows.push({id:uid(), date:d, amount:a, cat:c, note:n, createdAt:new Date().toISOString(), type:TX_NORMAL, cardId:null});
       added++;
     }
     return {added, skipped, bad, rows: newRows};

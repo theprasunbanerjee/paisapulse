@@ -45,6 +45,7 @@
       <span class="today-pill" id="todayPill" title="Today"></span>
       <span class="badge" id="saveBadge"><span class="dot"></span><span id="saveBadgeTxt">checking…</span></span>
       <button id="btnSound" title="Toggle sound effects" aria-label="Toggle sound effects">🔊</button>
+      <button id="btnCards">💳 Cards</button>
       <button id="btnData">⇅ Data</button>
       <button id="btnSettings">⚙ Budgets</button>
     </div>
@@ -87,6 +88,18 @@
     <button id="seedDismiss">Got it</button>
   </div>
 
+  <section class="card credit-card" id="creditSection" style="margin-top:14px">
+    <h2 class="txn-head"><span class="h2-title"><span class="spark"></span>Cards &amp; Credit</span>
+      <button id="btnManageCards" style="padding:6px 12px;font-size:12px">＋ Manage cards</button>
+    </h2>
+    <div class="credit-stats">
+      <div class="credit-stat"><div class="lbl">Outstanding</div><div class="val" id="outstandingAmt">₹0</div><div class="sub">owed across all cards</div></div>
+      <div class="credit-stat"><div class="lbl">Cash out this month</div><div class="val" id="cashflowAmt">₹0</div><div class="sub">money that left your bank</div></div>
+    </div>
+    <div class="shock-head">Incoming bills</div>
+    <div id="shockList"></div>
+  </section>
+
   <div class="grid">
     <div class="col">
       <section class="card">
@@ -101,6 +114,14 @@
           <div class="cat-suggest" id="catSuggest" hidden></div>
         </div>
         <div class="chips" id="catChips"></div>
+        <div class="paywith-row">
+          <span class="paywith-lbl">Pay with</span>
+          <span class="paywith" id="addPaywith">
+            <button type="button" class="pw-btn on" data-pw="normal">💵 Cash / UPI</button>
+            <button type="button" class="pw-btn" data-pw="credit">💳 Card</button>
+          </span>
+        </div>
+        <div id="addCardWrap" hidden><select id="addCardSel" class="card-select"></select></div>
         <div class="kbd-hint" id="kbdHint"></div>
         <input id="note" class="field-gap" placeholder="What was it? (optional)" autocomplete="off">
         <button class="btn-glow" id="btnAdd">Add expense</button>
@@ -217,9 +238,47 @@
     <input type="date" id="editDate">
   </div>
   <div class="chips" id="editCatChips" style="margin-top:14px"></div>
+  <div class="paywith-row">
+    <span class="paywith-lbl">Pay with</span>
+    <span class="paywith" id="editPaywith">
+      <button type="button" class="pw-btn on" data-epw="normal">💵 Cash / UPI</button>
+      <button type="button" class="pw-btn" data-epw="credit">💳 Card</button>
+    </span>
+  </div>
+  <div id="editCardWrap" hidden><select id="editCardSel" class="card-select"></select></div>
   <input id="editNote" class="field-gap" placeholder="What was it? (optional)" autocomplete="off" style="margin-top:10px">
   <div class="m-row" style="margin-top:16px">
     <button class="btn-glow" id="btnSaveEdit">Save changes</button>
+    <button data-close>Cancel</button>
+  </div>
+</dialog>
+
+<!-- Cards modal -->
+<dialog id="cardsModal">
+  <div class="m-head"><h3>Your credit cards</h3><button class="btn-ghost" data-close>✕</button></div>
+  <p class="hint">Add each card with the day its <b>statement</b> generates and the day payment is <b>due</b>. PaisaPulse groups your swipes into billing cycles and counts down to each due date.</p>
+  <div id="cardsList"></div>
+  <div class="divider"></div>
+  <div class="card-form">
+    <input id="cardName" placeholder="Card name (e.g. HDFC Millennia)" autocomplete="off" maxlength="40">
+    <div class="card-form-days">
+      <label>Statement day<input id="cardStmt" inputmode="numeric" placeholder="1–31"></label>
+      <label>Due day<input id="cardDue" inputmode="numeric" placeholder="1–31"></label>
+    </div>
+    <button class="btn-glow" id="btnAddCard">Add card</button>
+  </div>
+</dialog>
+
+<!-- Card payment modal -->
+<dialog id="payModal">
+  <div class="m-head"><h3>Record a payment — <span id="payCardName">card</span></h3><button class="btn-ghost" data-close>✕</button></div>
+  <p class="hint">Enter how much you paid toward this card's bill. Partial / minimum-due payments are fine — your outstanding just won't reach zero.</p>
+  <div class="amt-row">
+    <div class="amt-in"><span>₹</span><input id="payAmt" inputmode="text" placeholder="0" autocomplete="off"></div>
+    <input type="date" id="payDate">
+  </div>
+  <div class="m-row" style="margin-top:16px">
+    <button class="btn-glow" id="btnConfirmPay">Record payment</button>
     <button data-close>Cancel</button>
   </div>
 </dialog>

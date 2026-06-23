@@ -39,6 +39,13 @@ const KEY_NAME = "pp.name.v1";
 const KEY_URL  = "pp.cloud.url.v1";
 const KEY_OUT    = "pp.outbox.v1";
 const KEY_FOLDER = "pp.folder.url.v1";
+const KEY_CARDS    = "pp.cards.v1";
+const KEY_TXN_META = "pp.txnmeta.v1";
+
+/* transaction types — see the two-lens accounting model */
+const TX_NORMAL  = "normal";          // cash/UPI — hits Spend + Cash-flow same day
+const TX_CREDIT  = "credit";          // card swipe — hits Spend now, Cash-flow later
+const TX_PAYMENT = "credit_payment";  // paying the card bill — Cash-flow only, never Spend
 
 const URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/;
 
